@@ -4,7 +4,9 @@
    os visitantes, será necessário utilizar um backend e um banco de dados.
    Futuro ponto de integração: substitua os métodos deste serviço por chamadas à API segura. */
 window.storageService = (() => {
-  const KEYS = { exams: 'nexa_exams_v1', summaries: 'nexa_summaries_v1', users: 'nexa_users_v1', session: 'nexa_user_session_v1', ratings:'nexa_ratings_v1', reports:'nexa_reports_v1', quizzes:'nexa_quizzes_v1' };
+  const SUPABASE_URL = 'https://uwtdhdbrzlowpxdhlprs.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_1mZ3gj9pF8j4qi8OCNYdLQ_hQDMhL2g';
+  const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
   const initialExams = [
     { id:'espanhol', subject:'Espanhol', title:'Prova Bimestral de Espanhol', classTime:'2ª aula' },
     { id:'redacao', subject:'Redação', title:'Prova Bimestral de Redação', classTime:'2ª e 3ª aulas' },
@@ -12,25 +14,21 @@ window.storageService = (() => {
     { id:'religioso', subject:'Ensino Religioso', title:'Prova Bimestral de Ensino Religioso', classTime:'3ª aula' },
     { id:'ciencias', subject:'Ciências', title:'Prova Bimestral de Ciências', classTime:'3ª aula' }
   ];
-  const read = key => JSON.parse(localStorage.getItem(key) || '[]');
-  const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));
-  function ensureSeed(){ if(!localStorage.getItem(KEYS.exams)) write(KEYS.exams, initialExams); if(!localStorage.getItem(KEYS.summaries)) write(KEYS.summaries, []); }
-  function getExams(){ ensureSeed(); return read(KEYS.exams); }
-  function getSummaries(){ ensureSeed(); return read(KEYS.summaries); }
-  function getSummary(id){ return getSummaries().find(item => item.id === id); }
-  function saveSummary(summary){ const all=getSummaries(); const index=all.findIndex(item=>item.id===summary.id); if(index >= 0) all[index]=summary; else all.unshift(summary); write(KEYS.summaries,all); return summary; }
-  function deleteSummary(id){ write(KEYS.summaries, getSummaries().filter(item=>item.id!==id)); }
-  function saveExam(exam){const all=getExams();const index=all.findIndex(item=>item.id===exam.id);if(index>=0)all[index]=exam;else all.push(exam);write(KEYS.exams,all);return exam;}
-  function deleteExam(id){const hasSummary=getSummaries().some(summary=>summary.examId===id);if(hasSummary)throw new Error('Esta prova possui resumos vinculados e não pode ser removida.');write(KEYS.exams,getExams().filter(exam=>exam.id!==id));}
-  function ratings(){return read(KEYS.ratings);}function ratingStats(summaryId){const list=ratings().filter(r=>r.summaryId===summaryId);return {count:list.length,average:list.length?list.reduce((sum,r)=>sum+r.score,0)/list.length:0};}
-  function rate(summaryId,score){const user=currentUser();if(!user)return null;const all=ratings();const index=all.findIndex(r=>r.summaryId===summaryId&&r.userId===user.id);const value={id:index>=0?all[index].id:crypto.randomUUID(),summaryId,userId:user.id,score:Number(score),updatedAt:new Date().toISOString()};if(index>=0)all[index]=value;else all.push(value);write(KEYS.ratings,all);return value;}
-  function registerView(summaryId){const stamp=`nexa_view_${summaryId}`;const previous=Number(sessionStorage.getItem(stamp)||0);if(Date.now()-previous<30*60*1000)return false;const summary=getSummary(summaryId);if(!summary)return false;summary.views=(summary.views||0)+1;summary.updatedAt=summary.updatedAt||new Date().toISOString();saveSummary(summary);sessionStorage.setItem(stamp,String(Date.now()));return true;}
-  function reports(){return read(KEYS.reports);}function report(summaryId,reason,description){const user=currentUser();if(!user)return null;const summary=getSummary(summaryId);const item={id:crypto.randomUUID(),summaryId,authorId:summary?.authorId||'',reporterId:user.id,reporterName:user.username,reason,description,status:'pending',createdAt:new Date().toISOString()};write(KEYS.reports,[...reports(),item]);return item;}
-  function currentUser(){ try{return JSON.parse(localStorage.getItem(KEYS.session)||'null');}catch{return null;} }
-  function favoriteKey(){const user=currentUser();return user?`nexa_favorites_${user.id}_v1`:null;}
-  function favoriteIds(){const key=favoriteKey();return key?read(key):[];}
-  function toggleFavorite(id){const key=favoriteKey();if(!key)return null;const ids=favoriteIds();const next=ids.includes(id)?ids.filter(x=>x!==id):[...ids,id];write(key,next);return next.includes(id);}
-  return { getExams, getSummaries, getSummary, saveSummary, deleteSummary, saveExam, deleteExam, currentUser, favoriteIds, toggleFavorite, ratingStats, rate, registerView, reports, report, KEYS };
+  const localRead=k=>JSON.parse(localStorage.getItem(k)||'[]');
+  const localWrite=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+  const KEYS={session:'nexa_user_session_v1',exams:'nexa_exams_v1',summaries:'nexa_summaries_v1',ratings:'nexa_ratings_v1',reports:'nexa_reports_v1'};
+  function currentUser(){try{return JSON.parse(localStorage.getItem(KEYS.session)||'null')}catch{return null}}
+  async function getSessionUser(){if(!sb)return currentUser();const {data:{user}}=await sb.auth.getUser();if(!user)return null;const {data:p}=await sb.from('profiles').select('id,username,role,status').eq('id',user.id).single();return p?{...p,email:user.email}:null}
+  function getExams(){return localRead(KEYS.exams).length?localRead(KEYS.exams):initialExams}
+  function getSummaries(){return localRead(KEYS.summaries)}
+  function getSummary(id){return getSummaries().find(x=>x.id===id)}
+  function saveSummary(s){const a=getSummaries(),i=a.findIndex(x=>x.id===s.id);if(i>=0)a[i]=s;else a.unshift(s);localWrite(KEYS.summaries,a);return s}
+  function deleteSummary(id){localWrite(KEYS.summaries,getSummaries().filter(x=>x.id!==id))}
+  function saveExam(e){const a=getExams(),i=a.findIndex(x=>x.id===e.id);if(i>=0)a[i]={...a[i],...e};else a.push(e);localWrite(KEYS.exams,a);return e}
+  function deleteExam(id){if(getSummaries().some(s=>s.examId===id))throw new Error('Esta prova possui resumos vinculados e não pode ser removida.');localWrite(KEYS.exams,getExams().filter(e=>e.id!==id))}
+  const favoriteIds=()=>{const u=currentUser();return u?localRead('nexa_favorites_'+u.id+'_v1'):[]}
+  const toggleFavorite=id=>{const u=currentUser();if(!u)return null;const k='nexa_favorites_'+u.id+'_v1',a=favoriteIds(),n=a.includes(id)?a.filter(x=>x!==id):[...a,id];localWrite(k,n);return n.includes(id)}
+  return {getExams,getSummaries,getSummary,saveSummary,deleteSummary,saveExam,deleteExam,currentUser,favoriteIds,toggleFavorite,KEYS,getSessionUser,sb};
 })();
 
 /* Protótipo local: hashes e sessões ficam neste navegador. Em produção, troque por
