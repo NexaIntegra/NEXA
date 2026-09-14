@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="NEXA — seu estudo, mais simples.">
+  <title>NEXA | Seu estudo, mais simples.</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#inicio" aria-label="NEXA, página inicial"><img src="assets/logo.svg" alt="NEXA"><span>Seu estudo, mais simples.</span></a>
+    <button class="menu-button" aria-label="Abrir menu" aria-expanded="false">☰</button>
+    <nav class="main-nav" aria-label="Navegação principal">
+      <a href="#inicio">Início</a><a href="#provas">Provas</a><a href="#resumos">Resumos</a><a href="#favoritos">Favoritos</a><a href="#sobre">Sobre</a>
+      <a id="accountLink" class="admin-link" href="auth.html">Entrar</a><a class="admin-link" href="admin.html">Administrador</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="inicio">
+      <div class="hero-copy"><p class="eyebrow">PLATAFORMA DE ESTUDOS</p><h1>Conhecimento organizado para você estudar com mais calma.</h1><p>Encontre os resumos publicados para suas provas, salve favoritos e mantenha o foco no que importa.</p>
+        <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Pesquise por matéria, prova ou resumo" autocomplete="off"><kbd>⌘ K</kbd></label>
+      </div>
+      <aside class="study-card"><p class="study-card-label">PRÓXIMOS PASSOS</p><h2>Prepare-se no seu ritmo.</h2><ul><li>Escolha uma prova</li><li>Leia o resumo disponível</li><li>Salve para revisar depois</li></ul><button class="button primary" data-scroll="provas">Ver provas</button></aside>
+    </section>
+
+    <section class="metrics" aria-label="Resumo da plataforma"><article><strong id="examCount">5</strong><span>provas organizadas</span></article><article><strong id="publishedCount">0</strong><span>resumos publicados</span></article><article><strong>100%</strong><span>foco no estudo</span></article></section><section class="content-section" id="featured"><div class="section-heading"><div><p class="eyebrow">🔥 EM DESTAQUE</p><h2>Os melhores para revisar</h2></div><p>Seleção calculada por avaliações, visualizações e atualização.</p></div><div id="featuredList" class="summary-list"></div></section>
+
+    <section class="content-section" id="provas"><div class="section-heading"><div><p class="eyebrow">ORGANIZE-SE</p><h2>Provas por matéria</h2></div><p>Escolha uma prova para conferir o material preparado para ela.</p></div><div class="exam-grid" id="examGrid" aria-live="polite"></div></section>
+
+    <section class="content-section summaries-section" id="resumos"><div class="section-heading"><div><p class="eyebrow">CONTEÚDO</p><h2>Resumos para estudar</h2></div><button id="clearSearch" class="text-button" hidden>Limpar pesquisa</button></div><div class="filters"><select id="subjectFilter"><option value="">Todas as matérias</option></select><select id="authorFilter"><option value="">Todos os autores</option></select><select id="orderFilter"><option value="recent">Mais recentes</option><option value="popular">Mais favoritadas</option></select></div><div id="summaryList" class="summary-list" aria-live="polite"></div></section>
+
+    <section class="content-section favorites-section" id="favoritos"><div class="section-heading"><div><p class="eyebrow">SUA LISTA</p><h2>Favoritos</h2></div><p>Guardados apenas neste navegador.</p></div><div id="favoritesList" class="summary-list"></div></section>
+
+    <section class="about" id="sobre"><div><p class="eyebrow">SOBRE A NEXA</p><h2>Uma conexão direta entre estudantes e conteúdos que valem a revisão.</h2></div><p>Na NEXA, estudantes publicam e encontram resumos em uma leitura clara, confortável e organizada.</p></section>
+  </main>
+
+  <footer><a class="brand" href="#inicio"><img src="assets/logo-dark.svg" alt="NEXA"></a><p>© <span id="year"></span> NEXA. Seu estudo, mais simples.</p></footer>
+  <dialog id="readerDialog"><article class="reader"><button class="close-dialog" aria-label="Fechar leitura">×</button><div class="reader-tools"><button data-size="smaller" title="Diminuir fonte">A−</button><button data-size="larger" title="Aumentar fonte">A+</button><button id="studyMode">Modo de estudo</button><button id="readerFavorite">☆ Favoritar</button></div><div id="readerContent"></div></article></dialog><dialog id="reportDialog"><form method="dialog" class="reader"><button class="close-dialog" aria-label="Fechar">×</button><p class="eyebrow">MODERAÇÃO</p><h2>Denunciar resumo</h2><label>Motivo<select id="reportReason"><option>Conteúdo inadequado</option><option>Spam</option><option>Conteúdo incorreto</option><option>Conteúdo ofensivo</option><option>Outro</option></select></label><label>Explique o problema (opcional)<textarea id="reportDescription" rows="4"></textarea></label><p id="reportMessage" class="form-error"></p><button class="outline-button" id="sendReport" value="default">Enviar denúncia</button></form></dialog>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script><script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script><script src="script.js"></script>
+</body>
+</html>
