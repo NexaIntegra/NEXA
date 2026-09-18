@@ -11,7 +11,7 @@
   const mapSummary = row => row && ({
     id: row.id, examId: row.exam_id, title: row.title, introduction: row.introduction || '', content: row.content || '',
     contentType: row.content_type, pdfPath: row.pdf_path, pdfName: row.pdf_name, authorId: row.author_id,
-    authorName: row.profiles?.display_name || 'NEXA', status: row.status, createdAt: row.created_at,
+    authorName: row.profiles?.username || 'NEXA', status: row.status, createdAt: row.created_at,
     updatedAt: row.updated_at, exam: mapExam(row.exams)
   });
   const mapUser = (user, profile) => user && ({ id: user.id, email: user.email, username: profile?.username || user.email?.split('@')[0] || 'Estudante', role: profile?.role || 'student', createdAt: user.created_at });
@@ -19,7 +19,7 @@
     const api = assertClient();
     const { data: { user }, error } = await api.auth.getUser();
     if (error || !user) return null;
-    const profile = unwrap(await api.from('profiles').select('display_name,role').eq('id', user.id).maybeSingle());
+    const profile = unwrap(await api.from('profiles').select('username,role').eq('id', user.id).maybeSingle());
     return mapUser(user, profile);
   };
   const getExams = async () => (unwrap(await assertClient().from('exams').select('*').order('subject')) || []).map(mapExam);
