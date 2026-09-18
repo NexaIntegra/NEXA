@@ -6,11 +6,11 @@
   <meta name="description" content="NEXA — seu estudo, mais simples.">
   <title>NEXA | Seu estudo, mais simples.</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=20260918">
+  <link rel="stylesheet" href="style.css?v=20260918-logo2">
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="#inicio" aria-label="NEXA, página inicial"><svg class="nexa-logo" viewBox="0 0 420 92" role="img" aria-label="NEXA — Seu estudo, mais simples." xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="nexaBlue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#B9D8FF"/><stop offset="1" stop-color="#6D9BEF"/></linearGradient></defs><g transform="translate(8 10)"><rect x="0" y="0" width="74" height="68" rx="16" fill="url(#nexaBlue)"/><path d="M18 56V16h11l27 29V16h11v40H56L29 27v29z" fill="#fff"/></g><text x="105" y="65" font-family="Arial,Helvetica,sans-serif" font-size="52" font-weight="700" letter-spacing="5" fill="#6D9BEF">NEXA</text></svg><span>Seu estudo, mais simples.</span></a>
+    <a class="brand" href="#inicio" aria-label="NEXA, página inicial"><span class="nexa-mark" aria-hidden="true">N</span><span class="nexa-word">NEXA</span><span>Seu estudo, mais simples.</span></a>
     <button class="menu-button" aria-label="Abrir menu" aria-expanded="false">☰</button>
     <nav class="main-nav" aria-label="Navegação principal">
       <a href="#inicio">Início</a><a href="#provas">Provas</a><a href="#resumos">Resumos</a><a href="#favoritos">Favoritos</a><a href="#sobre">Sobre</a>
@@ -37,7 +37,7 @@
     <section class="about" id="sobre"><div><p class="eyebrow">SOBRE A NEXA</p><h2>Uma conexão direta entre estudantes e conteúdos que valem a revisão.</h2></div><p>Na NEXA, estudantes publicam e encontram resumos em uma leitura clara, confortável e organizada.</p></section>
   </main>
 
-  <footer><a class="brand" href="#inicio"><img src="assets/logo-dark.svg" alt="NEXA"></a><p>© <span id="year"></span> NEXA. Seu estudo, mais simples.</p></footer>
+  <footer><a class="brand" href="#inicio"><span class="nexa-mark" aria-hidden="true">N</span><span class="nexa-word">NEXA</span></a><p>© <span id="year"></span> NEXA. Seu estudo, mais simples.</p></footer>
   <dialog id="readerDialog"><article class="reader"><button class="close-dialog" aria-label="Fechar leitura">×</button><div class="reader-tools"><button data-size="smaller" title="Diminuir fonte">A−</button><button data-size="larger" title="Aumentar fonte">A+</button><button id="studyMode">Modo de estudo</button><button id="readerFavorite">☆ Favoritar</button></div><div id="readerContent"></div></article></dialog><dialog id="reportDialog"><form method="dialog" class="reader"><button class="close-dialog" aria-label="Fechar">×</button><p class="eyebrow">MODERAÇÃO</p><h2>Denunciar resumo</h2><label>Motivo<select id="reportReason"><option>Conteúdo inadequado</option><option>Spam</option><option>Conteúdo incorreto</option><option>Conteúdo ofensivo</option><option>Outro</option></select></label><label>Explique o problema (opcional)<textarea id="reportDescription" rows="4"></textarea></label><p id="reportMessage" class="form-error"></p><button class="outline-button" id="sendReport" value="default">Enviar denúncia</button></form></dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js?v=20260918"></script><script src="supabase.js?v=20260918"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script><script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script><script src="script.js?v=20260918"></script>
 </body>
