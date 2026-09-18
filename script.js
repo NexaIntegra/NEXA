@@ -1,6 +1,7 @@
 /* NEXA — núcleo Supabase */
-const NEXA_CONFIG={url:"https://uwtdhdbrzlowpxdhlprs.supabase.co",key:"sb_publishable_1mZ3gj9pF8j4qi8OCNYdLQ_hQDMhL2g"};
-const sb=window.supabase.createClient(NEXA_CONFIG.url,NEXA_CONFIG.key);
+const NEXA_CONFIG={url:window.NEXA_SUPABASE_URL,key:window.NEXA_SUPABASE_PUBLISHABLE_KEY||window.NEXA_SUPABASE_ANON_KEY};
+if(!NEXA_CONFIG.url||!NEXA_CONFIG.key)throw new Error("Configuração pública do Supabase não carregada.");
+const sb=window.supabase.createClient(NEXA_CONFIG.url,NEXA_CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 window.nexa={sb};
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
