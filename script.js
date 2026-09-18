@@ -1,52 +1,65 @@
-/* NEXA — núcleo Supabase */
-const NEXA_CONFIG={url:window.NEXA_SUPABASE_URL,key:window.NEXA_SUPABASE_PUBLISHABLE_KEY||window.NEXA_SUPABASE_ANON_KEY};
-if(!NEXA_CONFIG.url||!NEXA_CONFIG.key)throw new Error("Configuração pública do Supabase não carregada.");
-const sb=window.supabase.createClient(NEXA_CONFIG.url,NEXA_CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-window.nexa={sb};
-const $=s=>document.querySelector(s);
-const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const fmt=new Intl.DateTimeFormat("pt-BR",{dateStyle:"medium"});
-async function me(){const {data:{user}}=await sb.auth.getUser();if(!user)return null;const {data:p}=await sb.from("profiles").select("id,username,role,status,created_at").eq("id",user.id).maybeSingle();return p?{...p,email:user.email}:null}
-async function exams(){const {data,error}=await sb.from("exams").select("*").order("exam_date",{ascending:true,nullsFirst:false}).order("created_at",{ascending:true});if(error)throw error;return data||[]}
-async function summaries(){const {data,error}=await sb.from("summaries").select("*,profiles:author_id(id,username,created_at,status),exams:exam_id(id,subject,title,class_time,exam_date),ratings(score,user_id),favorites(user_id),quizzes(id,question,alternatives,correct_answer)").eq("status","published").order("updated_at",{ascending:false});if(error)throw error;return data||[]}
-async function allSummaries(){const {data,error}=await sb.from("summaries").select("*,profiles:author_id(id,username,created_at,status),exams:exam_id(id,subject,title,class_time,exam_date)").order("updated_at",{ascending:false});if(error)throw error;return data||[]}
-function avg(s){const a=s.ratings||[];return a.length?a.reduce((x,r)=>x+r.score,0)/a.length:0}
-async function toggleFavorite(id){const u=await me();if(!u){location.href="auth.html";return}const {data}=await sb.from("favorites").select("summary_id").eq("summary_id",id).eq("user_id",u.id).maybeSingle();if(data)await sb.from("favorites").delete().eq("summary_id",id).eq("user_id",u.id);else await sb.from("favorites").insert({summary_id:id,user_id:u.id})}
-async function rate(id,score){const u=await me();if(!u){location.href="auth.html";return}await sb.from("ratings").upsert({summary_id:id,user_id:u.id,score,updated_at:new Date().toISOString()},{onConflict:"summary_id,user_id"})}
-async function report(id,authorId,reason,description){const u=await me();if(!u){location.href="auth.html";return}return sb.from("reports").insert({summary_id:id,author_id:authorId,reporter_id:u.id,reason,description})}
-async function addView(id){const key="nexa_view_"+id;const last=Number(sessionStorage.getItem(key)||0);if(Date.now()-last<30*60*1000)return;sessionStorage.setItem(key,String(Date.now()));const {data:s}=await sb.from("summaries").select("views").eq("id",id).single();if(s)await sb.from("summaries").update({views:(s.views||0)+1}).eq("id",id)}
-async function loadQuiz(id){const {data,error}=await sb.from("quizzes").select("*").eq("summary_id",id).order("created_at");if(error)throw error;return data||[]}
-window.nexa.api={me,exams,summaries,allSummaries,avg,toggleFavorite,rate,report,addView,loadQuiz,esc,fmt};
-
-async function renderHome(){
- if(!$("main"))return;
- const [es,ss,u]=await Promise.all([exams(),summaries(),me()]);
- const grid=$("#examGrid"),list=$("#summaryList"),featured=$("#featuredList");
- if($("#examCount"))$("#examCount").textContent=es.length;
- if($("#publishedCount"))$("#publishedCount").textContent=ss.length;
- if(grid)grid.innerHTML=es.map(e=>`<article class="exam-card" data-exam="${esc(e.id)}"><div class="exam-icon">▤</div><p>${esc(e.subject)}</p><h3>${esc(e.title)}</h3><p>${esc(e.class_time||"")}${e.exam_date?" · "+fmt.format(new Date(e.exam_date+"T00:00:00")):""}</p></article>`).join("");
- const card=s=>{const r=avg(s),n=(s.ratings||[]).length;return `<article class="summary-card preview-card"><div class="subject-dot">${esc((s.exams?.subject||"?")[0])}</div><div class="summary-details"><h3>${esc(s.title)}</h3><p class="excerpt">${esc((s.introduction||s.content.replace(/<[^>]+>/g,"")).slice(0,130))}…</p><p>👤 <strong>${esc(s.profiles?.username||"NEXA")}</strong> · ${esc(s.exams?.subject||"")}</p><small>⭐ ${r?r.toFixed(1):"—"} (${n}) · 👁 ${s.views||0} visualizações · ${s.content_type==="pdf"?"📄 PDF":"📚 Texto"}</small></div><div class="summary-actions"><button class="outline-button open-summary" data-id="${s.id}">Abrir resumo →</button><button class="outline-button fav" data-id="${s.id}">☆ Favoritar</button></div></article>`};
- const sorted=[...ss].sort((a,b)=>(avg(b)-avg(a))*3+((b.views||0)-(a.views||0))*.05);
- if(featured)featured.innerHTML=sorted.slice(0,6).map(card).join("")||'<div class="empty">Ainda não há resumos publicados.</div>';
- const subjects=[...new Set(es.map(e=>e.subject))];
- if($("#subjectFilter"))$("#subjectFilter").innerHTML='<option value="">Todas as matérias</option>'+subjects.map(x=>`<option>${esc(x)}</option>`).join("");
- const authors=[...new Map(ss.map(s=>[s.author_id,s.profiles?.username||"Autor"])).entries()];
- if($("#authorFilter"))$("#authorFilter").innerHTML='<option value="">Todos os autores</option>'+authors.map(x=>`<option value="${esc(x[0])}">${esc(x[1])}</option>`).join("");
- const render=()=>{let q=($("#searchInput")?.value||"").toLocaleLowerCase("pt-BR"),sub=$("#subjectFilter")?.value||"",author=$("#authorFilter")?.value||"",type=$("#typeFilter")?.value||"",order=$("#orderFilter")?.value||"recent";let a=ss.filter(s=>{const text=[s.title,s.introduction,s.content,s.profiles?.username,s.exams?.subject,s.exams?.title].join(" ").toLocaleLowerCase("pt-BR");return(!q||text.includes(q))&&(!sub||s.exams?.subject===sub)&&(!author||s.author_id===author)&&(!type||type===s.content_type)});if(order==="views")a.sort((x,y)=>(y.views||0)-(x.views||0));if(order==="rated")a.sort((x,y)=>avg(y)-avg(x));if(order==="popular")a.sort((x,y)=>(y.favorites?.length||0)-(x.favorites?.length||0));list.innerHTML=a.map(card).join("")||'<div class="empty">Nenhum resumo encontrado.</div>'};
- ["searchInput","subjectFilter","authorFilter","typeFilter","orderFilter"].forEach(id=>$(`#${id}`)?.addEventListener("input",render));render();
- document.addEventListener("click",async e=>{const o=e.target.closest(".open-summary");if(o)openSummary(o.dataset.id);const f=e.target.closest(".fav");if(f){await toggleFavorite(f.dataset.id);renderHome()}const ex=e.target.closest(".exam-card");if(ex){$("#searchInput").value=exams().then(()=>{});$("#subjectFilter").value=(es.find(x=>x.id===ex.dataset.exam)||{}).subject||"";render()}});
- if(u&&$("#accountLink")){$("#accountLink").textContent="Olá, "+u.username;$("#accountLink").href="studio.html"}
-}
-async function openSummary(id){
- const {data:s,error}=await sb.from("summaries").select("*,profiles:author_id(id,username,created_at,status),exams:exam_id(id,subject,title,class_time,exam_date),ratings(score,user_id)").eq("id",id).single();if(error||!s)return;await addView(id);const qs=await loadQuiz(id);const u=await me();const r=avg(s),n=(s.ratings||[]).length;
- const qbtn=qs.length?'<button id="quizBtn" class="button primary">📝 Testar meus conhecimentos</button>':"";
- const html=`<div class="reader"><button class="close-dialog">×</button><p class="eyebrow">${esc(s.exams?.subject||"")}</p><h1>${esc(s.title)}</h1><p class="meta">Por ${esc(s.profiles?.username||"NEXA")} · 👁 ${s.views||0} visualizações · ⭐ ${r?r.toFixed(1):"—"} (${n} avaliações)</p><div class="reader-tools"><button id="readerFav" data-id="${s.id}">☆ Favoritar</button><button id="rateBtn" data-id="${s.id}">⭐ Avaliar</button><button id="reportBtn" data-id="${s.id}">⚑ Denunciar</button></div><p>${esc(s.introduction||"")}</p><div class="content-body">${s.content_type==="pdf"&&s.pdf_path?`<iframe class="pdf-frame" src="${sb.storage.from("summary-pdfs").getPublicUrl(s.pdf_path).data.publicUrl}"></iframe><p><a class="outline-button" target="_blank" href="${sb.storage.from("summary-pdfs").getPublicUrl(s.pdf_path).data.publicUrl}">Abrir PDF</a></p>`:(s.content||"<p>Sem conteúdo.</p>")}</div><div class="quiz-area">${qbtn}</div><p><a href="profile.html?id=${s.author_id}">Ver perfil de ${esc(s.profiles?.username||"autor")}</a></p></div>`;
- let d=$("#readerDialog");if(!d){d=document.createElement("dialog");d.id="readerDialog";document.body.appendChild(d)}d.innerHTML=html;d.showModal();
- $("#quizBtn")?.addEventListener("click",()=>showQuiz(qs,s.title));$("#readerFav")?.addEventListener("click",async()=>{await toggleFavorite(id);$("#readerFav").textContent="★ Favoritado"});$("#rateBtn")?.addEventListener("click",async()=>{const v=prompt("Dê uma nota de 1 a 5:");const score=Number(v);if(score>=1&&score<=5){await rate(id,score);alert("Avaliação salva!")}});
- $("#reportBtn")?.addEventListener("click",async()=>{const reason=prompt("Motivo da denúncia:");if(reason){const desc=prompt("Descrição (opcional):")||"";await report(id,s.author_id,reason,desc);alert("Denúncia enviada.")}});
- d.querySelector(".close-dialog").onclick=()=>d.close();
-}
-function showQuiz(qs,title){let d=$("#quizDialog");if(!d){d=document.createElement("dialog");d.id="quizDialog";document.body.appendChild(d)}d.innerHTML=`<div class="reader"><button class="close-dialog">×</button><p class="eyebrow">QUIZ</p><h2>${esc(title)}</h2><form id="quizForm">${qs.map((q,i)=>{const a=q.alternatives||{};return `<fieldset><legend>${i+1}. ${esc(q.question)}</legend>${Object.entries(a).map(([k,v])=>`<label><input type="radio" name="q${i}" value="${esc(k)}" required> ${esc(k)}) ${esc(v)}</label>`).join("")}</fieldset>`}).join("")}<button class="button primary">Corrigir quiz</button></form><div id="quizResult"></div></div>`;d.showModal();d.querySelector(".close-dialog").onclick=()=>d.close();$("#quizForm").onsubmit=e=>{e.preventDefault();let correct=0;qs.forEach((q,i)=>{if(new FormData(e.target).get("q"+i)===q.correct_answer)correct++});const pct=Math.round(correct/qs.length*100);$("#quizResult").innerHTML=`<h3>Resultado: ${correct}/${qs.length} (${pct}%)</h3><p>Você pode fechar e responder novamente quando quiser.</p>`}}
-window.openSummary=openSummary;
-renderHome();
-document.addEventListener("DOMContentLoaded",()=>{$("#year")&&($("#year").textContent=new Date().getFullYear())});
+(() => {
+  if (!document.getElementById('examGrid')) return;
+  const $ = selector => document.querySelector(selector);
+  const esc = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+  let exams = [], summaries = [], favorites = [], activeQuery = '', subjectQuery = '', authorQuery = '', order = 'recent', pdfState = null;
+  const examFor = id => exams.find(exam => exam.id === id);
+  const examWhen = exam => [exam.examDate ? new Date(`${exam.examDate}T12:00:00`).toLocaleDateString('pt-BR') : '', exam.classTime].filter(Boolean).join(' · ');
+  const summaryMarkup = summary => {
+    const exam = summary.exam || examFor(summary.examId); if (!exam) return '';
+    const excerpt = (summary.introduction || String(summary.content || '').replace(/<[^>]+>/g, '') || 'Material preparado para revisão.').slice(0, 115);
+    return `<article class="summary-card preview-card"><div class="subject-dot">${esc(exam.subject[0])}</div><div class="summary-details"><h3>${esc(summary.title)}</h3><p class="excerpt">${esc(excerpt)}${excerpt.length >= 115 ? '…' : ''}</p><p>👤 Autor: <strong>${esc(summary.authorName)}</strong> · ${esc(exam.subject)} · ${esc(exam.classTime)}</p><small>${summary.contentType === 'pdf' ? '📄 Material em PDF · ' : ''}${summary.updatedAt ? new Date(summary.updatedAt).toLocaleDateString('pt-BR') : ''}</small></div><div class="summary-actions"><button class="outline-button favorite-button" data-id="${summary.id}">${favorites.includes(summary.id) ? '★ Favoritado' : '☆ Favoritar'}</button><button class="outline-button read-button" data-id="${summary.id}">Abrir resumo →</button></div></article>`;
+  };
+  const filtered = () => {
+    const q = activeQuery.trim().toLocaleLowerCase('pt-BR');
+    return summaries.filter(summary => {
+      const exam = summary.exam || examFor(summary.examId); if (!exam) return false;
+      const text = [summary.title, exam.subject, exam.title, summary.authorName, summary.introduction, String(summary.content || '').replace(/<[^>]+>/g, '')].join(' ').toLocaleLowerCase('pt-BR');
+      return (!q || text.includes(q)) && (!subjectQuery || exam.subject === subjectQuery) && (!authorQuery || summary.authorId === authorQuery);
+    }).sort((a, b) => order === 'recent' ? new Date(b.updatedAt) - new Date(a.updatedAt) : 0);
+  };
+  const render = () => {
+    const published = filtered().filter(summary => summary.status === 'published');
+    $('#examCount').textContent = exams.length; $('#publishedCount').textContent = summaries.filter(summary => summary.status === 'published').length;
+    $('#examGrid').innerHTML = exams.map(exam => `<article class="exam-card" data-exam="${exam.id}" tabindex="0"><div class="exam-icon">▤</div><p>${esc(exam.subject)}</p><h3>${esc(exam.title)}</h3><p>${esc(examWhen(exam))}</p></article>`).join('');
+    $('#summaryList').innerHTML = published.length ? published.map(summaryMarkup).join('') : `<div class="empty">${activeQuery ? 'Nenhum resumo encontrado para esta pesquisa.' : 'Ainda não há resumos publicados.'}</div>`;
+    $('#favoritesList').innerHTML = summaries.filter(summary => favorites.includes(summary.id)).map(summaryMarkup).join('') || '<div class="empty">Você ainda não salvou nenhum resumo.</div>';
+    $('#subjectFilter').innerHTML = '<option value="">Todas as matérias</option>' + exams.map(exam => `<option value="${esc(exam.subject)}">${esc(exam.subject)}</option>`).join(''); $('#subjectFilter').value = subjectQuery;
+    const authors = [...new Map(summaries.map(summary => [summary.authorId, summary.authorName])).entries()];
+    $('#authorFilter').innerHTML = '<option value="">Todos os autores</option>' + authors.map(([id, name]) => `<option value="${id}">${esc(name)}</option>`).join(''); $('#authorFilter').value = authorQuery; $('#clearSearch').hidden = !activeQuery;
+  };
+  async function renderPdf(fit = false) {
+    if (!pdfState) return; const host = $('#pdfCanvasHost'), page = await pdfState.pdf.getPage(pdfState.page), base = page.getViewport({ scale: 1 });
+    if (fit) pdfState.scale = Math.max(.65, Math.min(2.2, (host.clientWidth - 28) / base.width));
+    const viewport = page.getViewport({ scale: pdfState.scale }), canvas = $('#pdfCanvas'), context = canvas.getContext('2d'); canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport }).promise; $('#pdfPageInfo').textContent = `Página ${pdfState.page} / ${pdfState.pdf.numPages}`; $('#pdfZoom').textContent = `${Math.round(pdfState.scale * 100)}%`;
+  }
+  async function openReader(id) {
+    const summary = summaries.find(item => item.id === id) || await nexaApi.getSummary(id); if (!summary) return;
+    const exam = summary.exam || examFor(summary.examId); if (!exam) return;
+    const pdfUrl = summary.contentType === 'pdf' ? nexaApi.publicPdfUrl(summary.pdfPath) : '';
+    const material = summary.contentType === 'pdf' ? `<div class="pdf-reader"><p>📄 <strong>${esc(summary.pdfName || 'Resumo em PDF')}</strong></p><div class="pdf-controls"><button id="pdfPrev">← Página</button><button id="pdfNext">Próxima →</button><button id="pdfMinus">−</button><button id="pdfZoom">100%</button><button id="pdfPlus">+</button><button id="pdfFit">Ajustar</button></div><div id="pdfPageInfo">Carregando PDF…</div><div id="pdfCanvasHost"><canvas id="pdfCanvas"></canvas></div><a class="outline-button" href="${esc(pdfUrl)}" target="_blank" rel="noopener" download>Baixar PDF</a></div>` : (summary.content || '<p>Resumo ainda não publicado.</p>');
+    $('#readerContent').innerHTML = `<p class="eyebrow">${esc(exam.subject)} · ${esc(exam.classTime)}</p><h1>${esc(summary.title)}</h1><p class="meta">${esc(exam.title)} · Publicado por <strong>${esc(summary.authorName)}</strong></p>${summary.introduction ? `<p>${esc(summary.introduction)}</p>` : ''}<div class="content-body">${material}</div>`;
+    $('#readerFavorite').dataset.id = id; $('#readerFavorite').textContent = favorites.includes(id) ? '★ Favoritado' : '☆ Favoritar'; $('#readerDialog').showModal();
+    if (pdfUrl && window.pdfjsLib) try { const pdf = await pdfjsLib.getDocument(pdfUrl).promise; pdfState = { pdf, page: 1, scale: 1 }; await renderPdf(true); } catch { $('#pdfCanvasHost').innerHTML = '<p>Não foi possível abrir a prévia. Use o botão para baixar o PDF.</p>'; }
+  }
+  async function refresh() { try { [exams, summaries, favorites] = await Promise.all([nexaApi.getExams(), nexaApi.getSummaries(), nexaApi.favoriteIds()]); render(); } catch (error) { $('#summaryList').innerHTML = `<div class="empty">${esc(error.message || 'Não foi possível carregar a NEXA.')}</div>`; } }
+  document.addEventListener('click', async event => {
+    const read = event.target.closest('.read-button'), favorite = event.target.closest('.favorite-button'), exam = event.target.closest('.exam-card');
+    if (read) return openReader(read.dataset.id);
+    if (favorite || event.target.id === 'readerFavorite') { const id = (favorite || event.target).dataset.id; const result = await nexaApi.toggleFavorite(id); if (result === null) { location.href = 'auth.html'; return; } await refresh(); return; }
+    if (exam) { activeQuery = examFor(exam.dataset.exam).subject; $('#searchInput').value = activeQuery; render(); location.hash = 'resumos'; }
+    if (event.target.matches('[data-scroll]')) location.hash = event.target.dataset.scroll;
+    if (event.target.matches('.close-dialog')) $('#readerDialog').close();
+    if (event.target.id === 'pdfPrev' && pdfState?.page > 1) { pdfState.page--; renderPdf(); }
+    if (event.target.id === 'pdfNext' && pdfState?.page < pdfState.pdf.numPages) { pdfState.page++; renderPdf(); }
+    if (event.target.id === 'pdfMinus' && pdfState) { pdfState.scale = Math.max(.5, pdfState.scale - .15); renderPdf(); }
+    if (event.target.id === 'pdfPlus' && pdfState) { pdfState.scale = Math.min(3, pdfState.scale + .15); renderPdf(); }
+    if (event.target.id === 'pdfFit' && pdfState) renderPdf(true);
+  });
+  $('#searchInput').oninput = event => { activeQuery = event.target.value; render(); }; $('#clearSearch').onclick = () => { activeQuery = ''; $('#searchInput').value = ''; render(); };
+  $('#subjectFilter').onchange = event => { subjectQuery = event.target.value; render(); }; $('#authorFilter').onchange = event => { authorQuery = event.target.value; render(); }; $('#orderFilter').onchange = event => { order = event.target.value; render(); };
+  $('.menu-button').onclick = () => { const nav = $('.main-nav'); nav.classList.toggle('open'); $('.menu-button').setAttribute('aria-expanded', nav.classList.contains('open')); };
+  document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#searchInput').focus(); } });
+  (async () => { const user = await nexaApi.currentUser(); if (user) { $('#accountLink').textContent = `Olá, ${user.username}`; $('#accountLink').href = user.role === 'admin' ? 'admin.html' : 'studio.html'; } $('#year').textContent = new Date().getFullYear(); refresh(); })();
+})();
