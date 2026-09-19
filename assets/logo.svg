@@ -9,91 +9,62 @@
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background-color: #ffffff; /* Clean white background */
-            font-family: sans-serif;
+            background-color: #ffffff;
         }
 
-        .logo-container {
-            width: 100%;
-            max-width: 600px; /* Scalable vector container */
-            padding: 20px;
-            box-sizing: border-box;
+        .svg-container {
+            width: 90%;
+            max-width: 800px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         svg {
             width: 100%;
             height: auto;
-            display: block;
         }
     </style>
 </head>
 <body>
-
-    <div class="logo-container">
+    <div class="svg-container">
         <svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <!-- Subtle gradient for the 3D folded shadow effect on the N -->
-                <linearGradient id="foldShadow" x1="0%" y1="100%" x2="0%" y2="0%">
-                    <stop offset="0%" stop-color="rgba(0, 0, 0, 0.12)" />
-                    <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
-                </linearGradient>
-            </defs>
-
-            <g id="big-n" fill="#84b6f4">
-                
-                <!-- Right Leg: Flat top to hold the cap, extending down -->
-                <path d="M 420 135 L 500 135 L 500 310 A 40 40 0 0 1 420 310 Z" />
-                
-                <!-- Fold Shadow: Placed precisely on the right leg, fading upwards -->
-                <!-- The diagonal overlaps it and hides the bottom edge -->
-                <polygon points="420,242 500,290 500,200 420,152" fill="url(#foldShadow)" />
-
-                <!-- Left Leg: Rounded bottom, flat top merging perfectly into the diagonal -->
-                <path d="M 220 190 L 300 190 L 300 310 A 40 40 0 0 1 220 310 Z" />
-
-                <!-- Diagonal Ribbon: Uses round caps to create perfect top-left and bottom-right corners -->
-                <line x1="260" y1="190" x2="460" y2="310" stroke="#84b6f4" stroke-width="80" stroke-linecap="round" />
-            </g>
-
-            <g id="graduation-cap">
-                <!-- Diamond Mortarboard: Sits on the right leg, uses a white stroke to create a negative space cutout -->
-                <polygon points="460,75 530,110 460,145 390,110" fill="#84b6f4" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" />
-                
-                <!-- Tassel string hanging from the right tip -->
-                <line x1="520" y1="105" x2="520" y2="155" stroke="#84b6f4" stroke-width="4" stroke-linecap="round" />
-                
-                <!-- Tassel Teardrop Bead -->
-                <g id="tassel-bead" fill="#84b6f4">
-                    <circle cx="520" cy="162" r="4" />
-                    <polygon points="520,150 516,162 524,162" />
-                </g>
-            </g>
-
-            <!-- The text is rendered as geometric paths to perfectly match the rounded logo font -->
-            <g id="nexa-text" stroke="#84b6f4" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none">
-                
+            
+            <!-- 1. Right vertical stem (background) -->
+            <path d="M 480,160 L 560,160 L 560,360 A 40,40 0 0,1 480,360 Z" fill="#6a9bf4" />
+            
+            <!-- 2. Main N ribbon (left stem and diagonal) -->
+            <path d="M 280,360 L 280,200 L 520,360" stroke="#82b1ff" stroke-width="80" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            
+            <!-- 3. Graduation cap base -->
+            <polygon points="475,135 565,135 550,160 490,160" fill="#82b1ff" />
+            
+            <!-- 4. Graduation cap diamond top -->
+            <polygon points="520,80 605,115 520,150 435,115" fill="#82b1ff" />
+            
+            <!-- 5. Tassel string -->
+            <line x1="585" y1="128" x2="585" y2="170" stroke="#82b1ff" stroke-width="6" stroke-linecap="round" />
+            
+            <!-- 6. Tassel teardrop -->
+            <circle cx="585" cy="177" r="7" fill="#82b1ff" />
+            
+            <!-- 7. The text 'NEXA' below the logo -->
+            <g stroke="#82b1ff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none">
                 <!-- N -->
-                <!-- Path draws up, diagonal down, then up to ensure correct line joints -->
-                <path d="M 240 480 L 240 420 L 290 480 L 290 420" />
-                
+                <path d="M 225,510 L 225,440 L 285,510 L 285,440" />
                 <!-- E -->
-                <!-- Draws the spine and outer horizontal bars, then adds the middle bar -->
-                <path d="M 380 420 L 330 420 L 330 480 L 380 480 M 330 450 L 370 450" />
-                
+                <path d="M 370,440 L 325,440 L 325,510 L 370,510 M 325,475 L 355,475" />
                 <!-- X -->
-                <path d="M 420 420 L 470 480 M 470 420 L 420 480" />
-                
+                <path d="M 415,440 L 475,510 M 475,440 L 415,510" />
                 <!-- A -->
-                <!-- Simple inverted V without a crossbar, matching the logo -->
-                <path d="M 510 480 L 535 420 L 560 480" />
-
+                <path d="M 515,510 L 545,440 L 575,510 M 527,485 L 563,485" />
             </g>
+            
         </svg>
     </div>
-
 </body>
 </html>
