@@ -14,8 +14,47 @@
     $('#tutorialAdminList').innerHTML = tutorials.length ? tutorials.map(item => `<article class="help-admin-item"><div><strong>${esc(item.title)}</strong><p>${esc(item.description || item.video_url)}</p></div><span class="help-status ${item.active ? 'active' : 'inactive'}">${item.active ? 'Visível' : 'Oculto'}</span><div class="table-actions"><button data-help-action="tutorial-edit" data-id="${item.id}">Editar</button><button data-help-action="tutorial-toggle" data-id="${item.id}">${item.active ? 'Ocultar' : 'Mostrar'}</button><button class="danger" data-help-action="tutorial-delete" data-id="${item.id}">Excluir</button></div></article>`).join('') : '<div class="empty">Nenhum tutorial cadastrado.</div>';
   };
   const resetFaq = () => { $('#faqForm').reset(); $('#faqId').value = ''; $('#faqOrder').value = 0; $('#faqActive').checked = true; };
-  const resetTutorial = () => { $('#tutorialForm').reset(); $('#tutorialId').value = ''; $('#tutorialOrder').value = 0; $('#tutorialActive').checked = true; selectedTutorialVideo = null; selectedTutorialThumbnail = null; savedTutorialVideoPath = null; savedTutorialThumbnailPath = null; $('#tutorialVideoStatus').textContent = 'No celular, você poderá escolher um vídeo da Fototeca/Galeria ou dos Arquivos.'; $('#tutorialThumbStatus').textContent = 'Aceita fotos da Fototeca/Galeria ou imagens dos Arquivos.'; };
-  const validVideoUrl = value => { try { const url = new URL(value); return url.protocol === 'https:' || url.protocol === 'http:'; } catch { return false; } };
+  const resetTutorial = () => { $('#tutorialForm').reset(); $('#tutorialId').value = ''; $('#tutorialActive').checked = true; selectedTutorialVideo = null; selectedTutorialThumbnail = null; savedTutorialVideoPath = null; savedTutorialThumbnailPath = null; $('#tutorialVideoStatus').textContent = 'No celular, você poderá escolher um vídeo da Fototeca/Galeria ou dos Arquivos.'; $('#tutorialThumbStatus').textContent = 'Aceita fotos da Fototeca/Galeria ou imagens dos Arquivos.'; };
+  const ensureTutorialMediaApi = () => {
+    if (!window.nexaApi) window.nexaApi = {};
+    if (typeof window.nexaApi.uploadTutorialVideo !== 'function') {
+      window.nexaApi.uploadTutorialVideo = async file => {
+        if (!file) throw new Error('Escolha um vídeo.');
+        if (!file.type || !file.type.startsWith('video/')) throw new Error('Escolha um arquivo de vídeo válido.');
+        if (file.size > 100 * 1024 * 1024) throw new Error('O vídeo deve ter no máximo 100 MB.');
+        const url = window.NEXA_SUPABASE_URL;
+        const key = window.NEXA_SUPABASE_PUBLISHABLE_KEY || window.NEXA_SUPABASE_ANON_KEY;
+        if (!url || !key) throw new Error('A conexão com o Supabase não está configurada.');
+        const client = window.supabase.createClient(url, key);
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user) throw new Error('Entre na conta de administrador novamente.');
+        const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'mp4';
+        const path = `${authData.user.id}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await client.storage.from('tutorial-videos').upload(path, file, { contentType: file.type || 'video/mp4', cacheControl: '3600', upsert: false });
+        if (error) throw error;
+        return { path, url: client.storage.from('tutorial-videos').getPublicUrl(path).data.publicUrl, name: file.name };
+      };
+    }
+    if (typeof window.nexaApi.uploadTutorialThumbnail !== 'function') {
+      window.nexaApi.uploadTutorialThumbnail = async file => {
+        if (!file) throw new Error('Escolha uma imagem para a capa.');
+        if (!file.type || !file.type.startsWith('image/')) throw new Error('Escolha uma imagem válida para a capa.');
+        if (file.size > 5 * 1024 * 1024) throw new Error('A capa deve ter no máximo 5 MB.');
+        const url = window.NEXA_SUPABASE_URL;
+        const key = window.NEXA_SUPABASE_PUBLISHABLE_KEY || window.NEXA_SUPABASE_ANON_KEY;
+        if (!url || !key) throw new Error('A conexão com o Supabase não está configurada.');
+        const client = window.supabase.createClient(url, key);
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user) throw new Error('Entre na conta de administrador novamente.');
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'jpg';
+        const path = `${authData.user.id}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await client.storage.from('tutorial-thumbnails').upload(path, file, { contentType: file.type || 'image/jpeg', cacheControl: '3600', upsert: false });
+        if (error) throw error;
+        return { path, url: client.storage.from('tutorial-thumbnails').getPublicUrl(path).data.publicUrl, name: file.name };
+      };
+    }
+  };
+  ensureTutorialMediaApi();
   const resetEditor = () => { $('#summaryForm').reset(); $('#editingId').value = ''; $('#contentEditor').innerHTML = ''; selectedPdf = null; savedPdfPath = null; savedPdfName = null; $('#pdfStatus').textContent = ''; toggleMaterialType(); updatePreview(); };
   const toggleMaterialType = () => { const pdf = $('#summaryType').value === 'pdf'; $('#writtenEditor').hidden = pdf; $('#pdfEditor').hidden = !pdf; };
   const draftData = status => ({ id: $('#editingId').value || undefined, examId: $('#summaryExam').value, title: $('#summaryTitle').value.trim(), introduction: $('#summaryIntro').value.trim(), contentType: $('#summaryType').value, content: $('#contentEditor').innerHTML.trim(), pdfPath: savedPdfPath, pdfName: savedPdfName, authorId: user.id, status });
@@ -34,8 +73,8 @@
         if (helpAction.dataset.helpAction === 'faq-delete' && confirm(`Excluir a pergunta “${item.question}”?`)) { await nexaApi.deleteFaq(item.id); await load(); }
       } else {
         const item = tutorials.find(x => x.id === id); if (!item) return;
-        if (helpAction.dataset.helpAction === 'tutorial-edit') { $('#tutorialId').value = item.id; $('#tutorialTitle').value = item.title; $('#tutorialDescription').value = item.description || ''; $('#tutorialVideoUrl').value = item.video_url || ''; $('#tutorialThumbUrl').value = item.thumbnail_url || ''; $('#tutorialOrder').value = item.display_order ?? 0; $('#tutorialActive').checked = item.active !== false; selectedTutorialVideo = null; selectedTutorialThumbnail = null; savedTutorialVideoPath = item.video_path || null; savedTutorialThumbnailPath = item.thumbnail_path || null; $('#tutorialVideoFile').value = ''; $('#tutorialThumbFile').value = ''; $('#tutorialVideoStatus').textContent = item.video_path ? 'Vídeo enviado: arquivo salvo no Supabase. Escolha outro arquivo para substituir.' : (item.video_url ? 'Este tutorial usa um link de vídeo. Escolha um arquivo para trocar por um vídeo enviado.' : 'Nenhum vídeo selecionado.'); $('#tutorialThumbStatus').textContent = item.thumbnail_path ? 'Capa enviada: imagem salva no Supabase. Escolha outra para substituir.' : (item.thumbnail_url ? 'Este tutorial usa uma URL de capa. Escolha uma imagem para substituir.' : 'Capa opcional: você pode enviar uma foto ou usar uma URL.'); showView('help'); }
-        if (helpAction.dataset.helpAction === 'tutorial-toggle') { await nexaApi.saveTutorial({ id:item.id, title:item.title, description:item.description, videoUrl:item.video_url, videoPath:item.video_path, thumbnailUrl:item.thumbnail_url, thumbnailPath:item.thumbnail_path, displayOrder:item.display_order ?? 0, active:!item.active }); await load(); }
+        if (helpAction.dataset.helpAction === 'tutorial-edit') { $('#tutorialId').value = item.id; $('#tutorialTitle').value = item.title; $('#tutorialDescription').value = item.description || ''; $('#tutorialVideoUrl').value = item.video_url || ''; $('#tutorialThumbUrl').value = item.thumbnail_url || ''; $('#tutorialActive').checked = item.active !== false; selectedTutorialVideo = null; selectedTutorialThumbnail = null; savedTutorialVideoPath = item.video_path || null; savedTutorialThumbnailPath = item.thumbnail_path || null; $('#tutorialVideoFile').value = ''; $('#tutorialThumbFile').value = ''; $('#tutorialVideoStatus').textContent = item.video_path ? 'Vídeo enviado: arquivo salvo no Supabase. Escolha outro arquivo para substituir.' : (item.video_url ? 'Este tutorial usa um link de vídeo. Escolha um arquivo para trocar por um vídeo enviado.' : 'Nenhum vídeo selecionado.'); $('#tutorialThumbStatus').textContent = item.thumbnail_path ? 'Capa enviada: imagem salva no Supabase. Escolha outra para substituir.' : (item.thumbnail_url ? 'Este tutorial usa uma URL de capa. Escolha uma imagem para substituir.' : 'Capa opcional: você pode enviar uma foto ou usar uma URL.'); showView('help'); }
+        if (helpAction.dataset.helpAction === 'tutorial-toggle') { await nexaApi.saveTutorial({ id:item.id, title:item.title, description:item.description, videoUrl:item.video_url, videoPath:item.video_path, thumbnailUrl:item.thumbnail_url, thumbnailPath:item.thumbnail_path, active:!item.active }); await load(); }
         if (helpAction.dataset.helpAction === 'tutorial-delete' && confirm(`Excluir o tutorial “${item.title}”?`)) { await nexaApi.deleteTutorial(item.id); await load(); }
       }
       return;
@@ -44,33 +83,41 @@
   ['input','change'].forEach(type => $('#summaryForm').addEventListener(type, updatePreview)); $('#summaryType').onchange = () => { toggleMaterialType(); updatePreview(); }; $('#pdfFile').onchange = event => { selectedPdf = event.target.files[0] || null; if (selectedPdf) { savedPdfPath = null; savedPdfName = selectedPdf.name; $('#pdfStatus').textContent = `PDF selecionado: ${selectedPdf.name}`; } updatePreview(); }; document.querySelectorAll('.toolbar [data-command]').forEach(button => button.onclick = () => { document.execCommand(button.dataset.command, false, button.dataset.value || null); $('#contentEditor').focus(); updatePreview(); }); $('#calloutButton').onclick = () => { document.execCommand('insertHTML', false, '<div class="callout"><strong>Importante:</strong> Escreva uma informação que o aluno não pode esquecer.</div><p><br></p>'); updatePreview(); }; $('#separatorButton').onclick = () => { document.execCommand('insertHTML', false, '<hr><p><br></p>'); updatePreview(); }; $('#summaryForm').onsubmit = event => { event.preventDefault(); save('published'); }; $('#saveDraft').onclick = () => save('draft'); $('#previewButton').onclick = () => { updatePreview(); $('#fullPreview').innerHTML = $('#previewContent').innerHTML; $('#previewDialog').showModal(); };
   $('#faqForm').onsubmit = async event => { event.preventDefault(); try { const question=$('#faqQuestion').value.trim(), answer=$('#faqAnswer').value.trim(); if(!question||!answer) throw new Error('Preencha a pergunta e a resposta.'); await nexaApi.saveFaq({ id:$('#faqId').value || undefined, question, answer, displayOrder:Number($('#faqOrder').value||0), active:$('#faqActive').checked }); resetFaq(); await load(); } catch(error) { alert(error.message || 'Não foi possível salvar a pergunta.'); } };
   $('#clearFaq').onclick = resetFaq;
-  $('#tutorialVideoFile').onchange = event => { selectedTutorialVideo = event.target.files[0] || null; if (selectedTutorialVideo) { $('#tutorialVideoUrl').value = ''; $('#tutorialVideoStatus').textContent = `Vídeo selecionado: ${selectedTutorialVideo.name}`; } };
-  $('#tutorialThumbFile').onchange = event => { selectedTutorialThumbnail = event.target.files[0] || null; if (selectedTutorialThumbnail) { $('#tutorialThumbUrl').value = ''; $('#tutorialThumbStatus').textContent = `Capa selecionada: ${selectedTutorialThumbnail.name}`; } };
+  $('#tutorialVideoFile').onchange = event => {
+    selectedTutorialVideo = event.target.files[0] || null;
+    if (selectedTutorialVideo) $('#tutorialVideoStatus').textContent = `Vídeo selecionado: ${selectedTutorialVideo.name}`;
+  };
+  $('#tutorialThumbFile').onchange = event => {
+    selectedTutorialThumbnail = event.target.files[0] || null;
+    if (selectedTutorialThumbnail) $('#tutorialThumbStatus').textContent = `Capa selecionada: ${selectedTutorialThumbnail.name}`;
+  };
   $('#tutorialForm').onsubmit = async event => { event.preventDefault(); try {
-    const title=$('#tutorialTitle').value.trim();
-    let videoUrl=$('#tutorialVideoUrl').value.trim(), videoPath=savedTutorialVideoPath;
-    let thumbnailUrl=$('#tutorialThumbUrl').value.trim(), thumbnailPath=savedTutorialThumbnailPath;
-    const oldVideoPath=savedTutorialVideoPath, oldThumbnailPath=savedTutorialThumbnailPath;
-    if (selectedTutorialVideo) {
-      const uploaded = await nexaApi.uploadTutorialVideo(selectedTutorialVideo);
-      videoUrl = uploaded.url; videoPath = uploaded.path;
-    } else if (videoUrl) {
-      if (!validVideoUrl(videoUrl)) throw new Error('Use uma URL http:// ou https:// válida.');
-      videoPath = null;
-    }
-    if (!videoUrl) throw new Error('Escolha um arquivo de vídeo ou informe a URL do vídeo.');
+    ensureTutorialMediaApi();
+    const title = $('#tutorialTitle').value.trim();
+    if (!title) throw new Error('Preencha o título do tutorial.');
+    if (!selectedTutorialVideo) throw new Error('Escolha o arquivo de vídeo.');
+    let uploaded = await window.nexaApi.uploadTutorialVideo(selectedTutorialVideo);
+    let thumbnailUrl = null, thumbnailPath = null;
     if (selectedTutorialThumbnail) {
-      const uploadedThumb = await nexaApi.uploadTutorialThumbnail(selectedTutorialThumbnail);
-      thumbnailUrl = uploadedThumb.url; thumbnailPath = uploadedThumb.path;
-    } else if (thumbnailUrl) {
-      if (!validVideoUrl(thumbnailUrl)) throw new Error('Use uma URL http:// ou https:// válida para a capa.');
-      thumbnailPath = null;
+      const thumb = await window.nexaApi.uploadTutorialThumbnail(selectedTutorialThumbnail);
+      thumbnailUrl = thumb.url; thumbnailPath = thumb.path;
     }
-    await nexaApi.saveTutorial({ id:$('#tutorialId').value || undefined, title, description:$('#tutorialDescription').value.trim(), videoUrl, videoPath, thumbnailUrl:thumbnailUrl || null, thumbnailPath, displayOrder:Number($('#tutorialOrder').value||0), active:$('#tutorialActive').checked });
-    if (oldVideoPath && oldVideoPath !== videoPath) await nexaApi.removeTutorialMedia(oldVideoPath, null).catch(()=>{});
-    if (oldThumbnailPath && oldThumbnailPath !== thumbnailPath) await nexaApi.removeTutorialMedia(null, oldThumbnailPath).catch(()=>{});
-    resetTutorial(); await load();
-  } catch(error) { alert(error.message || 'Não foi possível salvar o tutorial.'); } };
+    await nexaApi.saveTutorial({
+      id: $('#tutorialId').value || undefined,
+      title,
+      description: $('#tutorialDescription').value.trim(),
+      videoUrl: uploaded.url,
+      videoPath: uploaded.path,
+      thumbnailUrl,
+      thumbnailPath,
+      displayOrder: 0,
+      active: $('#tutorialActive').checked
+    });
+    resetTutorial();
+    await load();
+  } catch(error) {
+    alert(error.message || 'Não foi possível salvar o tutorial.');
+  } };
   $('#clearTutorial').onclick = resetTutorial;
   $('#examForm').onsubmit = async event => { event.preventDefault(); try { await nexaApi.saveExam({ id: $('#examId').value || undefined, subject: $('#examSubject').value.trim(), title: $('#examTitle').value.trim(), examDate: $('#examDate').value, classTime: $('#examClassTime').value.trim() }); $('#examForm').reset(); $('#examId').value = ''; $('#examMessage').textContent = 'Prova salva com sucesso.'; await load(); } catch (error) { $('#examMessage').textContent = error.message; } }; $('#clearExam').onclick = () => { $('#examForm').reset(); $('#examId').value = ''; };
   (async () => { user = await nexaApi.currentUser(); if (user?.role === 'admin') setLogin(true); else setLogin(false); })();
