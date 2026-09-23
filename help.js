@@ -24,7 +24,15 @@
     if (!host) return;
     host.innerHTML = list.length ? list.map(item => {
       const embed = toYouTubeEmbed(item.video_url);
-      const media = embed ? `<div class="tutorial-video"><iframe src="${esc(embed)}" title="${esc(item.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>` : `<a class="tutorial-link" href="${esc(item.video_url)}" target="_blank" rel="noopener">Abrir vídeo</a>`;
+      let media = '';
+      if (embed) {
+        media = `<div class="tutorial-video"><iframe src="${esc(embed)}" title="${esc(item.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
+      } else if (item.video_path || item.video_url) {
+        const poster = item.thumbnail_url ? ` poster="${esc(item.thumbnail_url)}"` : '';
+        media = `<div class="tutorial-video"><video controls playsinline preload="metadata"${poster}><source src="${esc(item.video_url)}">Seu navegador não conseguiu reproduzir este vídeo.</video></div>`;
+      } else {
+        media = '<div class="tutorial-link">Vídeo não disponível.</div>';
+      }
       return `<article class="tutorial-card">${media}<div class="tutorial-body"><p class="eyebrow">TUTORIAL</p><h3>${esc(item.title)}</h3><p>${esc(item.description || '')}</p></div></article>`;
     }).join('') : '<div class="empty">Ainda não há tutoriais publicados.</div>';
   };
