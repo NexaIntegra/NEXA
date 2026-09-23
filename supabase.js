@@ -44,6 +44,31 @@
     return { path, name: file.name };
   };
   const publicPdfUrl = path => path ? assertClient().storage.from('summary-pdfs').getPublicUrl(path).data.publicUrl : '';
+  const uploadTutorialVideo = async file => {
+    if (!file) fail('Escolha um arquivo de vídeo.');
+    if (!file.type.startsWith('video/')) fail('Escolha um arquivo de vídeo válido.');
+    if (file.size > 100 * 1024 * 1024) fail('O vídeo deve ter no máximo 100 MB.');
+    const user = await currentUser(); if (!user) fail('Entre na sua conta antes de enviar um vídeo.');
+    const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'mp4';
+    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    unwrap(await assertClient().storage.from('tutorial-videos').upload(path, file, { contentType: file.type || 'video/mp4', cacheControl: '3600', upsert: false }));
+    return { path, url: assertClient().storage.from('tutorial-videos').getPublicUrl(path).data.publicUrl, name: file.name };
+  };
+  const uploadTutorialThumbnail = async file => {
+    if (!file) fail('Escolha uma imagem para a capa.');
+    if (!file.type.startsWith('image/')) fail('Escolha uma imagem válida para a capa.');
+    if (file.size > 5 * 1024 * 1024) fail('A capa deve ter no máximo 5 MB.');
+    const user = await currentUser(); if (!user) fail('Entre na sua conta antes de enviar a capa.');
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'jpg';
+    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    unwrap(await assertClient().storage.from('tutorial-thumbnails').upload(path, file, { contentType: file.type || 'image/jpeg', cacheControl: '3600', upsert: false }));
+    return { path, url: assertClient().storage.from('tutorial-thumbnails').getPublicUrl(path).data.publicUrl, name: file.name };
+  };
+  const deleteTutorialFile = async (bucket, path) => {
+    if (!path) return;
+    const { error } = await assertClient().storage.from(bucket).remove([path]);
+    if (error) throw error;
+  };
   const getFaqs = async (includeInactive = false) => {
     let query = assertClient().from('faqs').select('id,question,answer,display_order,active,created_at,updated_at').order('display_order', { ascending: true }).order('created_at', { ascending: true });
     if (!includeInactive) query = query.eq('active', true);
@@ -52,13 +77,29 @@
   const saveFaq = async faq => unwrap(await assertClient().from('faqs').upsert({ id: faq.id || undefined, question: faq.question, answer: faq.answer, display_order: Number(faq.displayOrder || 0), active: faq.active !== false, updated_at: new Date().toISOString() }).select().single());
   const deleteFaq = async id => { unwrap(await assertClient().from('faqs').delete().eq('id', id)); };
   const getTutorials = async (includeInactive = false) => {
-    let query = assertClient().from('tutorials').select('id,title,description,video_url,thumbnail_url,display_order,active,created_at,updated_at').order('display_order', { ascending: true }).order('created_at', { ascending: true });
+    let query = assertClient().from('tutorials').select('id,title,description,video_url,video_path,thumbnail_url,thumbnail_path,display_order,active,created_at,updated_at').order('display_order', { ascending: true }).order('created_at', { ascending: true });
     if (!includeInactive) query = query.eq('active', true);
     return unwrap(await query) || [];
   };
-  const saveTutorial = async tutorial => unwrap(await assertClient().from('tutorials').upsert({ id: tutorial.id || undefined, title: tutorial.title, description: tutorial.description || '', video_url: tutorial.videoUrl, thumbnail_url: tutorial.thumbnailUrl || null, display_order: Number(tutorial.displayOrder || 0), active: tutorial.active !== false, updated_at: new Date().toISOString() }).select().single());
-  const deleteTutorial = async id => { unwrap(await assertClient().from('tutorials').delete().eq('id', id)); };
-  window.nexaApi = { configured, currentUser, getExams, getSummaries, getSummary, saveExam, deleteExam, saveSummary, deleteSummary, favoriteIds, toggleFavorite, uploadPdf, publicPdfUrl, getFaqs, saveFaq, deleteFaq, getTutorials, saveTutorial, deleteTutorial };
+  const saveTutorial = async tutorial => unwrap(await assertClient().from('tutorials').upsert({
+    id: tutorial.id || undefined,
+    title: tutorial.title,
+    description: tutorial.description || '',
+    video_url: tutorial.videoUrl,
+    video_path: tutorial.videoPath || null,
+    thumbnail_url: tutorial.thumbnailUrl || null,
+    thumbnail_path: tutorial.thumbnailPath || null,
+    display_order: Number(tutorial.displayOrder || 0),
+    active: tutorial.active !== false,
+    updated_at: new Date().toISOString()
+  }).select().single());
+  const deleteTutorial = async id => {
+    const item = unwrap(await assertClient().from('tutorials').select('video_path,thumbnail_path').eq('id', id).maybeSingle());
+    unwrap(await assertClient().from('tutorials').delete().eq('id', id));
+    await deleteTutorialFile('tutorial-videos', item?.video_path);
+    await deleteTutorialFile('tutorial-thumbnails', item?.thumbnail_path);
+  };
+  window.nexaApi = { configured, currentUser, getExams, getSummaries, getSummary, saveExam, deleteExam, saveSummary, deleteSummary, favoriteIds, toggleFavorite, uploadPdf, publicPdfUrl, uploadTutorialVideo, uploadTutorialThumbnail, getFaqs, saveFaq, deleteFaq, getTutorials, saveTutorial, deleteTutorial };
   window.authService = {
     signUp: async (email, password) => { const { data, error } = await assertClient().auth.signUp({ email: email.trim(), password }); if (error) throw error; return data; },
     login: async (email, password) => { const { data, error } = await assertClient().auth.signInWithPassword({ email: email.trim(), password }); if (error) throw error; return data.user; },
