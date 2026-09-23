@@ -69,6 +69,10 @@
     const { error } = await assertClient().storage.from(bucket).remove([path]);
     if (error) throw error;
   };
+  const removeTutorialMedia = async (videoPath, thumbnailPath) => {
+    await deleteTutorialFile('tutorial-videos', videoPath);
+    await deleteTutorialFile('tutorial-thumbnails', thumbnailPath);
+  };
   const getFaqs = async (includeInactive = false) => {
     let query = assertClient().from('faqs').select('id,question,answer,display_order,active,created_at,updated_at').order('display_order', { ascending: true }).order('created_at', { ascending: true });
     if (!includeInactive) query = query.eq('active', true);
@@ -99,7 +103,7 @@
     await deleteTutorialFile('tutorial-videos', item?.video_path);
     await deleteTutorialFile('tutorial-thumbnails', item?.thumbnail_path);
   };
-  window.nexaApi = { configured, currentUser, getExams, getSummaries, getSummary, saveExam, deleteExam, saveSummary, deleteSummary, favoriteIds, toggleFavorite, uploadPdf, publicPdfUrl, uploadTutorialVideo, uploadTutorialThumbnail, getFaqs, saveFaq, deleteFaq, getTutorials, saveTutorial, deleteTutorial };
+  window.nexaApi = { configured, currentUser, getExams, getSummaries, getSummary, saveExam, deleteExam, saveSummary, deleteSummary, favoriteIds, toggleFavorite, uploadPdf, publicPdfUrl, uploadTutorialVideo, uploadTutorialThumbnail, removeTutorialMedia, getFaqs, saveFaq, deleteFaq, getTutorials, saveTutorial, deleteTutorial };
   window.authService = {
     signUp: async (email, password) => { const { data, error } = await assertClient().auth.signUp({ email: email.trim(), password }); if (error) throw error; return data; },
     login: async (email, password) => { const { data, error } = await assertClient().auth.signInWithPassword({ email: email.trim(), password }); if (error) throw error; return data.user; },
