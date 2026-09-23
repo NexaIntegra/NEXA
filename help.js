@@ -17,7 +17,7 @@
   const renderFaqs = list => {
     const host = $('#faqList');
     if (!host) return;
-    host.innerHTML = list.length ? list.map(item => `<details class="faq-item"><summary>${esc(item.question)}</summary><div class="faq-answer">${item.answer}</div></details>`).join('') : '<div class="empty">Ainda não há perguntas frequentes publicadas.</div>';
+    host.innerHTML = list.length ? list.map(item => `<details class="faq-item"><summary>${esc(item.question)}</summary><div class="faq-answer">${esc(item.answer).replace(/\n/g,'<br>')}</div></details>`).join('') : '<div class="empty">Ainda não há perguntas frequentes publicadas.</div>';
   };
   const renderTutorials = list => {
     const host = $('#tutorialList');
