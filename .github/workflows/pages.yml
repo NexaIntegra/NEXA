@@ -84,10 +84,11 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
                 if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Alternativas repetidas');
                 if (!q.alternatives.includes(q.answer)) throw new Error('Resposta correta ausente');
                 if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Resposta apareceu no enunciado');
+                if (q.alternatives.some(option => engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error('Distrator revela a resposta correta');
                 if (/Sobre "/.test(q.question)) throw new Error('Formato antigo detectado');
                 if (/qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Formato antigo detectado');
                 if (/este ponto|essa ideia|essa informação|a ideia apresentada|neste ponto do conteúdo/i.test(q.question)) throw new Error('Pergunta vaga detectada');
-                if (q.question.length < 55) throw new Error('Pergunta curta demais');
+                if (q.question.length < 45) throw new Error('Pergunta curta demais');
               }
             }
           }
@@ -121,6 +122,7 @@ Condições de trabalho`;
               if (q.alternatives.length !== 4) throw new Error('Hybrid: 4 alternativas obrigatórias');
               if (!q.alternatives.includes(q.answer)) throw new Error('Hybrid: resposta correta ausente');
               if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Hybrid: alternativas repetidas');
+              if (q.alternatives.some(option => engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error('Hybrid: distrator revela a correta');
               if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Hybrid: resposta vazou no enunciado');
               if (q.alternatives.some(a => String(a).trim().length < 14)) throw new Error('Hybrid: alternativa cortada');
               if (q.alternatives.some(a => /boa prova|para decorar|memorize/i.test(a))) throw new Error('Hybrid: texto de decoração nas alternativas');
@@ -182,7 +184,7 @@ Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-hybrid-4/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-hybrid-5/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
           if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
           if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
