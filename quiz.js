@@ -61,14 +61,15 @@
     .replace(/ *\n */g, '\n')
     .trim();
 
-  const splitSentences = text => cleanText(text)
-    .split(/\n+|(?<=[.!?])\s+/)
-    .map(s => s
-      .replace(/^[\s•▪●◦\-–—]+/, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim()
-    )
-    .filter(s => s.length >= 20 && s.length <= 500);
+  const splitSentences = text => {
+    const source = cleanText(text);
+    const parts = source
+      .split(/\n+/)
+      .flatMap(line => line.split(/(?<=[.!?])\s+/))
+      .map(s => s.replace(/^[\s•▪●◦\-–—]+/, '').replace(/\s{2,}/g, ' ').trim())
+      .filter(s => s.length >= 18 && s.length <= 650);
+    return [...new Map(parts.map(item => [normalize(item), item])).values()];
+  };
 
   const getKeywords = text => {
     const count = new Map();
@@ -300,10 +301,26 @@
     locked = false;
 
     try {
-      let source = [context.summary.introduction, context.summary.content].filter(Boolean).join('\n');
-      source = cleanText(source);
-      if (context.summary.contentType === 'pdf' && source.length < 300) source = await extractPdfText(context.pdfUrl);
-      quiz = generateQuizFromText(source, source.split(/\s+/).length > 700 ? 8 : 6);
+      const storedContent = cleanText([context.summary.introduction, context.summary.content].filter(Boolean).join('\n'));
+      const sources = [];
+      if (storedContent.length >= 140) sources.push(storedContent);
+      if (context.summary.contentType === 'pdf' && context.pdfUrl) {
+        try {
+          const pdfContent = await extractPdfText(context.pdfUrl);
+          if (pdfContent.length >= 140) sources.push(pdfContent);
+        } catch {}
+      }
+      let lastError = null;
+      quiz = null;
+      for (const source of sources) {
+        try {
+          quiz = generateQuizFromText(source, source.split(/\s+/).length > 700 ? 8 : 6);
+          if (quiz.length >= 5) break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!quiz) throw lastError || new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
       $('#quizTitle').textContent = context.summary.title || 'Quiz por IA';
       $('#quizSubtitle').textContent = 'Personalizado com base no conteúdo deste resumo';
       renderQuestion();
