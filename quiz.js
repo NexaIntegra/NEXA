@@ -72,8 +72,8 @@
       if (!key) continue;
       const nk = normalize(key);
       if (used.has(nk)) continue;
-      const index = ns.indexOf(nk);
-      const original = sentence.slice(index, index + key.length);
+      const index = sentence.toLocaleLowerCase('pt-BR').indexOf(key.toLocaleLowerCase('pt-BR'));
+      const original = index >= 0 ? sentence.slice(index, index + key.length) : key;
       if (!original) continue;
       used.add(nk);
       out.push({ keyword: original, sentence });
@@ -102,7 +102,7 @@
     for (const fact of shuffle(defs)) {
       if (questions.length >= Math.ceil(count / 2)) break;
       const alternatives = shuffle(defs.filter(x => x !== fact).map(x => x.answer).filter(x => x.length > 4)).slice(0, 5);
-      if (alternatives.length >= 2) {
+      if (alternatives.length >= 3) {
         questions.push(makeQuestion('De acordo com o resumo, o que é "' + fact.term + '"?', fact.answer, alternatives));
         used.add(normalize(fact.sentence));
       }
