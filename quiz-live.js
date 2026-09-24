@@ -230,15 +230,21 @@
     if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
 
     const location = text.match(/^(.+?)\s+(ocorre|ocorrem|acontece|acontecem|se passa|aconteceu|ocorreu)\s+(em|no|na|nos|nas|dentro|pelas|pelos|pela|pelo)\s+(.+)$/i);
-    if (location) return {
-      type: 'location',
-      subject: location[1].trim(),
-      verb: location[2].trim(),
-      preposition: location[3].trim(),
-      answer: location[4].trim(),
-      fullAnswer: text,
-      years
-    };
+    if (location) {
+      const tail = location[4].trim();
+      const compoundAction = /\b(?:e|porque)\s+(?:produz|produziu|participa|participou|entra|entrou|libera|liberou|transporta|transportou|absorve|absorveu|contribui|contribuiu|aumenta|aumentou|provoca|provocou|causa|causou)\b/i.test(tail);
+      if (!compoundAction) {
+        return {
+          type: 'location',
+          subject: location[1].trim(),
+          verb: location[2].trim(),
+          preposition: location[3].trim(),
+          answer: tail,
+          fullAnswer: text,
+          years
+        };
+      }
+    }
 
     const activity = text.match(/^(.+?)\s+(absorve|absorveu|entra|entrou|participa|participou|produz|produziu|libera|liberou|transporta|transportou|começou|comecou|começa|comeca|cresce|cresceu|aumenta|aumentou|facilita|facilitou|contribui|contribuiu|defende|defendia|representa|representava|significa|significava|é|são|era|eram|foi|foram|é absorvida|é transportada|é liberado|foi absorvida|foi transportada|foi liberado)\s+(.+)$/i);
     if (activity) return {
@@ -481,8 +487,8 @@
 
       case 'date':
         return [
-          'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
-          'Qual acontecimento importante está associado a ' + p.year + '?'
+          'Que acontecimento importante o conteúdo situa em ' + p.year + '?',
+          'Qual mudança ou fato marcante está associado ao ano de ' + p.year + '?'
         ];
 
       default:
@@ -547,7 +553,7 @@
 
     for (const other of allFacts) {
       if (normalize(other.text) === normalize(fact.text)) continue;
-      const candidate = answerForFact(other);
+      const candidate = shortAnswerForFact(other);
       if (!candidate || candidate.length < 18 || isStudyMeta(candidate) || isFragment(candidate)) continue;
       if (normalize(candidate) === normalize(answer)) continue;
       if (candidateLeaksCorrectAnswer(candidate, answer)) continue;
