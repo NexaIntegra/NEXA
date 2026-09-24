@@ -554,6 +554,11 @@
   };
 
   const questionTemplates = {
+    prompt: [
+      p => p.prompt,
+      p => 'Segundo o conteúdo, ' + p.prompt.charAt(0).toLowerCase() + p.prompt.slice(1),
+      p => 'Considerando o resumo, ' + p.prompt.charAt(0).toLowerCase() + p.prompt.slice(1)
+    ],
     sequence: [
       p => 'Qual sequência resume os acontecimentos apresentados a partir de "' + p.subject + '"?',
       p => 'Ao analisar "' + p.subject + '", qual sequência de acontecimentos aparece no conteúdo?',
@@ -779,7 +784,7 @@
     const facts = splitFacts(text);
     if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
 
-    const count = Math.min(facts.length, 8, Math.max(5, Number(desiredCount) || 6));
+    const count = Math.min(facts.length, 8, Math.max(4, Number(desiredCount) || 6));
     const questions = [];
     const used = new Set();
     const usedQuestions = new Set();
