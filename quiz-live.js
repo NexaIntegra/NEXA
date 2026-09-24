@@ -114,7 +114,15 @@
         }
       }
 
-      addStatement(line);
+      const protectedLine = line.replace(/\bD\.\s+/g, 'D§ ');
+      const statements = protectedLine
+        .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
+        .map(part => part.replace(/D§\s+/g, 'D. ').trim())
+        .filter(Boolean);
+
+      for (const statement of statements) {
+        addStatement(statement);
+      }
     }
 
     if (pendingQuestion) addStatement(pendingQuestion);
