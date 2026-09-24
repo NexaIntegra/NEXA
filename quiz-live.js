@@ -121,38 +121,71 @@
     };
   };
 
+  const factParts = fact => {
+    const clean = String(fact || '').replace(/^\d+[.)]\s*/, '').replace(/^[•▪●◦\-–—]+\s*/, '').replace(/\s{2,}/g, ' ').trim();
+    const colon = clean.indexOf(':');
+    const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+    const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+
+    if (arrowParts.length >= 2) {
+      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relation' };
+    }
+    if (colon > 4 && colon < 140) {
+      return { subject: clean.slice(0, colon).trim(), detail: clean.slice(colon + 1).trim(), relation: 'detail' };
+    }
+    if (dashParts.length >= 2) {
+      return { subject: dashParts[0], detail: dashParts.slice(1).join(' — '), relation: 'explanation' };
+    }
+    if (/\bmudou\b|\bpassou de\b/i.test(clean)) {
+      return { subject: clean, detail: clean, relation: 'change' };
+    }
+    const markers = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido','ocorreu em','aconteceu em'];
+    const marker = markers.find(item => normalize(clean).includes(normalize(item)));
+    if (marker) {
+      const idx = normalize(clean).indexOf(normalize(marker));
+      return { subject: clean.slice(0, idx).trim(), detail: clean.slice(idx).trim(), relation: 'consequence' };
+    }
+    return {
+      subject: clean.split(/\s+/).slice(0, Math.min(8, clean.split(/\s+/).length)).join(' '),
+      detail: clean,
+      relation: 'general'
+    };
+  };
+
   const makeDetailedQuestion = (fact, facts, keyList) => {
     const parts = factParts(fact);
-    const related = keyList.find(key => normalize(fact).includes(normalize(key)));
-    const topic = parts.subject || related || 'este conteúdo';
+    const topic = keyList.find(key => normalize(fact).includes(normalize(key))) || parts.subject;
 
-    let question;
-    if (parts.relation === 'relação') {
-      question = 'De acordo com o resumo, qual alternativa explica corretamente a relação apresentada entre "' + parts.subject + '" e "' + parts.detail + '"?';
-    } else if (parts.relation === 'detalhamento') {
-      question = 'Considerando o resumo, qual é o principal detalhamento apresentado sobre "' + parts.subject + '" e como ele é descrito no material?';
-    } else if (parts.relation === 'consequência') {
-      question = 'Segundo o resumo, qual acontecimento, característica ou consequência está associado a "' + (parts.subject || topic) + '"?';
+    let question = '';
+    if (parts.relation === 'relation') {
+      question = 'O resumo apresenta a relação entre "' + parts.subject + '" e "' + parts.detail + '". Qual alternativa explica corretamente essa relação e seu significado dentro do tema estudado?';
+    } else if (parts.relation === 'detail') {
+      question = 'Ao tratar de "' + parts.subject + '", qual informação específica o resumo apresenta e como esse ponto se encaixa no conteúdo estudado?';
+    } else if (parts.relation === 'change') {
+      question = 'Como o resumo descreve a mudança em "' + topic + '" e quais elementos estão envolvidos nessa transformação?';
+    } else if (parts.relation === 'consequence') {
+      question = 'Segundo o resumo, qual é a principal consequência, característica ou resultado associado a "' + (parts.subject || topic) + '"?';
+    } else if (parts.relation === 'explanation') {
+      question = 'Considerando o ponto "' + parts.subject + '", qual explicação ou consequência é apresentada no resumo para esse aspecto?';
     } else {
-      question = 'No contexto apresentado pelo resumo, qual alternativa descreve corretamente "' + topic + '" e a informação relacionada a esse ponto?';
+      question = 'Considerando o contexto de "' + topic + '", qual alternativa descreve corretamente a informação apresentada no resumo e sua importância para o tema?';
     }
 
-    const sameTopic = facts.filter(other => {
+    const related = facts.filter(other => {
       if (normalize(other) === normalize(fact)) return false;
-      return topic.split(/\s+/).some(word => word.length >= 5 && normalize(other).includes(normalize(word)));
+      const words = topic.split(/\s+/).filter(word => word.length >= 5).slice(0, 3);
+      return words.length > 0 && words.some(word => normalize(other).includes(normalize(word)));
     });
+    const pool = related.length >= 3 ? related : facts.filter(other => normalize(other) !== normalize(fact));
+    const alternatives = shuffle(unique([fact, ...shuffle(pool).slice(0, 3)])).slice(0, 4);
 
-    const fallback = facts.filter(other => normalize(other) !== normalize(fact));
-    const distractors = shuffle(unique([...(sameTopic.length ? sameTopic : fallback)])).slice(0, 3);
-    const options = shuffle(unique([fact, ...distractors])).slice(0, 4);
-
-    if (options.length !== 4 || !options.some(item => normalize(item) === normalize(fact))) return null;
+    if (alternatives.length !== 4 || !alternatives.some(item => normalize(item) === normalize(fact))) return null;
 
     return {
       question,
       answer: fact,
-      alternatives: options,
-      explanation: 'O resumo apresenta essa informação desta forma: "' + fact + '"'
+      alternatives,
+      explanation: 'A resposta está correta porque o resumo apresenta: "' + fact + '"'
     };
   };
 
