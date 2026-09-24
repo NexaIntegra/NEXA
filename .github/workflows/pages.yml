@@ -52,14 +52,9 @@ jobs:
           console.log('Quiz integration static checks OK');
           NODE
           node - <<'NODE'
-          const domStub = {
-            addEventListener() {},
-            querySelector() { return null; },
-            createElement() { return { innerHTML: '', innerText: '', textContent: '' }; }
-          };
-          global.document = domStub;
+          global.document = undefined;
           global.Element = class {};
-          global.window = { document: domStub };
+          global.window = { document: null };
           require('./quiz-live.js');
 
           const normal = 'A Revolução Francesa foi um processo político e social ocorrido na França no final do século XVIII. A burguesia defendia maior participação política e liberdade econômica. A queda da Bastilha ocorreu em 14 de julho de 1789. A Declaração dos Direitos do Homem e do Cidadão defendia liberdade e igualdade jurídica. A Revolução provocou mudanças profundas na política europeia. O movimento também influenciou outras sociedades.';
