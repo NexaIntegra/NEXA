@@ -301,10 +301,14 @@
     locked = false;
 
     try {
-      const storedContent = cleanText([context.summary.introduction, context.summary.content].filter(Boolean).join('\n'));
+      let summary = context.summary;
+      if (summary.id && window.nexaApi?.getSummary) {
+        try { summary = await nexaApi.getSummary(summary.id) || summary; } catch {}
+      }
+      const storedContent = cleanText([summary.introduction, summary.content].filter(Boolean).join('\n'));
       const sources = [];
       if (storedContent.length >= 140) sources.push(storedContent);
-      if (context.summary.contentType === 'pdf' && context.pdfUrl) {
+      if (summary.contentType === 'pdf' && context.pdfUrl) {
         try {
           const pdfContent = await extractPdfText(context.pdfUrl);
           if (pdfContent.length >= 140) sources.push(pdfContent);
@@ -321,7 +325,7 @@
         }
       }
       if (!quiz) throw lastError || new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
-      $('#quizTitle').textContent = context.summary.title || 'Quiz por IA';
+      $('#quizTitle').textContent = summary.title || 'Quiz por IA';
       $('#quizSubtitle').textContent = 'Personalizado com base no conteúdo deste resumo';
       renderQuestion();
     } catch (error) {
