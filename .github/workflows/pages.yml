@@ -81,6 +81,28 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
             }
           }
 
+          const decorationProbe = `Boa prova! Para decorar: antes, o comércio colonial era controlado por Portugal; de
+Ideia para decorar: antes, o comércio colonial era controlado por Portugal; depois vieram mudanças.
+Quinto: 20% de todo ouro pertencia ao Rei.
+Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
+          const probeFacts = engine.splitFacts(decorationProbe);
+          if (probeFacts.some(f => /boa prova|para decorar|ideia para decorar|o mais importante/i.test(f))) {
+            throw new Error('Quiz quality: conteúdo de decoração foi aceito como fato');
+          }
+
+          const probeQuiz = engine.generateQuizFromText(decorationProbe, 5);
+          for (const q of probeQuiz) {
+            for (const option of q.alternatives) {
+              if (option.length < 20) throw new Error('Quiz quality: alternativa curta/cortada');
+              if (/(?:^|\\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|em|no|na|nos|nas|ao|à|a)\\.?$/i.test(option)) {
+                throw new Error('Quiz quality: alternativa termina com fragmento');
+              }
+              if (/boa prova|para decorar|ideia para decorar/i.test(option)) {
+                throw new Error('Quiz quality: texto de decoração entrou nas alternativas');
+              }
+            }
+          }
+
           const leakCases = [
             'Declaração dos Direitos do Homem e do Cidadão: defendia liberdade e igualdade jurídica.',
             'Povoamento do interior → fronteiras ampliadas.',
@@ -108,7 +130,7 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-final-quality-4/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-final-quality-5/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
           if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
           if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
