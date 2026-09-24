@@ -314,13 +314,13 @@
     const verbWords = new Set([
       'é','e','são','sao','foi','foram','era','eram','está','esta','estão','estao','estava','estavam','ocorre','ocorreu','ocorrem',
       'acontece','aconteceu','acontecem','absorve','absorveu','absorvem','entra','entrou','entram','participa',
-      'participou','participam','contribui','contribuiu','contribuem','aumenta','aumentou','aumentam','cresce',
-      'cresceu','crescem','começou','começam','envolveu','envolve','envolvem','facilitou','facilita','facilitam',
-      'provoca','provocou','provocam','defende','defendia','defendem','pertence','pertencia','pertencem',
+      'participou','participam','contribui','contribuiu','contribuem','aumenta','aumentou','aumentam','cresce','cresceram',
+      'cresceu','crescem','começou','comecou','começam','comecam','envolveu','envolve','envolvem','facilitou','facilitam','facilita','facilitaram',
+      'provoca','provocou','provocam','defende','defendia','defendem','defenderam','pertence','pertencia','pertencem',
       'transporta','transportou','transportam','libera','liberou','liberam','produz','produziu','produzem',
-      'resultou','resulta','levou','leva','permite','permitiu','permitiram','prejudica','prejudicou',
-      'ficou','fica','ficam','voltou','volta','voltam','decidiu','decide','decidem'
-    ]);
+      'resultou','resulta','resultaram','levou','leva','levaram','permite','permitiu','permitiram','prejudica','prejudicou',
+      'ficou','fica','ficam','voltou','volta','voltam','decidiu','decide','decidem','recebeu','recebe','recebem'
+    ].map(normalize));
 
     let verbIndex = -1;
     for (let i = 1; i < words.length; i++) {
