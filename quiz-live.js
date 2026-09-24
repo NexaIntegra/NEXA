@@ -181,7 +181,7 @@
 
     const words = withoutLead.split(/\s+/);
     const verbWords = new Set([
-      'é','são','foi','foram','era','eram','está','estão','estava','estavam','ocorre','ocorreu','ocorrem',
+      'é','e','são','sao','foi','foram','era','eram','está','esta','estão','estao','estava','estavam','ocorre','ocorreu','ocorrem',
       'acontece','aconteceu','acontecem','absorve','absorveu','absorvem','entra','entrou','entram','participa',
       'participou','participam','contribui','contribuiu','contribuem','aumenta','aumentou','aumentam','cresce',
       'cresceu','crescem','começou','começam','envolveu','envolve','envolvem','facilitou','facilita','facilitam',
@@ -266,44 +266,44 @@
 
   const questionTemplates = {
     relation: [
-      p => 'Que resultado ou desdobramento o resumo associa a "' + p.subject + '"?',
-      p => 'Segundo o conteúdo estudado, o que acontece em relação a "' + p.subject + '"?',
-      p => 'Qual consequência ou resultado é apresentado para "' + p.subject + '" no resumo?'
+      p => 'Qual resultado o resumo associa a "' + p.subject + '" dentro do tema estudado?',
+      p => 'O que o conteúdo indica como consequência ou desdobramento de "' + p.subject + '"?',
+      p => 'Que resultado relacionado a "' + p.subject + '" é apresentado no resumo?'
     ],
     detail: [
-      p => 'No contexto estudado, qual função ou característica é destacada para "' + p.subject + '"?',
-      p => 'O que o resumo destaca sobre "' + p.subject + '"?',
-      p => 'Qual informação específica o conteúdo apresenta sobre "' + p.subject + '"?'
+      p => 'No conteúdo estudado, qual função ou característica é atribuída a "' + p.subject + '"?',
+      p => 'Que informação específica o resumo apresenta sobre "' + p.subject + '" dentro desse tema?',
+      p => 'Como o resumo caracteriza "' + p.subject + '" no contexto do conteúdo estudado?'
     ],
     change: [
-      p => 'O que mudou em "' + p.subject + '" segundo o resumo?',
-      p => 'Qual transformação é descrita para "' + p.subject + '" no conteúdo estudado?',
-      p => 'Como o resumo descreve a mudança em "' + p.subject + '"?'
+      p => 'Que mudança o resumo apresenta em "' + p.subject + '" e como ela é descrita?',
+      p => 'Como o conteúdo descreve a transformação ocorrida em "' + p.subject + '"?',
+      p => 'Ao tratar de "' + p.subject + '", que transformação é apresentada no resumo?'
     ],
     cause: [
-      p => 'Qual motivo ou explicação o resumo apresenta para "' + p.subject + '"?',
-      p => 'Que explicação o conteúdo oferece para o que ocorreu com "' + p.subject + '"?',
-      p => 'Segundo o resumo, o que explica "' + p.subject + '"?'
+      p => 'Qual explicação o resumo apresenta para o fato de "' + p.subject + '"?',
+      p => 'Segundo o conteúdo, que motivo explica o que ocorreu com "' + p.subject + '"?',
+      p => 'Que explicação aparece no resumo para o que aconteceu com "' + p.subject + '"?'
     ],
     consequence: [
-      p => 'Qual efeito o resumo atribui a "' + p.subject + '"?',
-      p => 'Que resultado é associado a "' + p.subject + '" no conteúdo estudado?',
-      p => 'Qual consequência aparece relacionada a "' + p.subject + '" no resumo?'
+      p => 'Qual efeito ou resultado o resumo associa a "' + p.subject + '"?',
+      p => 'Que consequência do conteúdo está relacionada a "' + p.subject + '"?',
+      p => 'Segundo o resumo, qual resultado decorre de "' + p.subject + '"?'
     ],
     explanation: [
-      p => 'Que informação o resumo apresenta para explicar "' + p.subject + '"?',
-      p => 'Como o conteúdo caracteriza "' + p.subject + '"?',
-      p => 'Qual explicação ou característica é apresentada para "' + p.subject + '"?'
+      p => 'Como o resumo explica ou caracteriza "' + p.subject + '" neste contexto?',
+      p => 'Que informação o conteúdo apresenta para explicar "' + p.subject + '"?',
+      p => 'Qual característica ou explicação é apresentada para "' + p.subject + '" no resumo?'
     ],
     date: [
-      p => 'Qual acontecimento está associado a ' + p.year + ' segundo o resumo?',
-      p => 'O que o conteúdo registra em ' + p.year + '?',
-      p => 'Que fato do tema estudado é relacionado a ' + p.year + '?'
+      p => 'Qual acontecimento o resumo associa a ' + p.year + ' dentro do tema estudado?',
+      p => 'O que o conteúdo registra em ' + p.year + ' e como esse fato aparece no resumo?',
+      p => 'Que acontecimento importante do tema está relacionado a ' + p.year + '?'
     ],
     general: [
-      p => p.subject ? 'Qual informação do resumo caracteriza "' + p.subject + '"?' : 'Qual informação importante o resumo apresenta neste ponto do conteúdo?',
-      p => p.subject ? 'O que o conteúdo destaca sobre "' + p.subject + '"?' : 'Qual afirmação específica aparece neste trecho do resumo?',
-      p => p.subject ? 'Como o resumo descreve "' + p.subject + '"?' : 'O que o resumo afirma neste trecho?'
+      p => 'No contexto estudado, que informação o resumo apresenta sobre "' + p.subject + '"?',
+      p => 'Como o conteúdo descreve "' + p.subject + '" dentro do tema estudado?',
+      p => 'Que informação específica o resumo destaca sobre "' + p.subject + '"?'
     ]
   };
 
