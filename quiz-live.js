@@ -242,9 +242,9 @@
       p => 'Por que ' + p.year + ' é uma data importante dentro do tema apresentado?'
     ],
     general: [
-      p => 'No trecho que trata de "' + p.subject + '", qual informação completa corretamente a ideia apresentada?',
-      p => 'Qual alternativa explica o papel de "' + p.subject + '" dentro do conteúdo estudado?',
-      p => 'O que o resumo afirma sobre "' + p.subject + '" quando esse ponto é relacionado ao restante do tema?'
+      p => 'Que informação do resumo caracteriza "' + p.subject + '" e ajuda a situá-lo no tema estudado?',
+      p => 'Como o resumo caracteriza "' + p.subject + '" e qual detalhe do conteúdo está diretamente ligado a ele?',
+      p => 'Dentro do tema estudado, o que "' + p.subject + '" representa e qual informação do resumo explica essa relação?'
     ]
   };
 
@@ -257,7 +257,11 @@
 
     const related = relatedFacts(fact, facts);
     const fallback = facts.filter(other => normalize(other) !== normalize(fact));
-    const pool = unique([...related, ...fallback]);
+    const subjectNorm = normalize(parts.subject || '').trim();
+    const safeRelated = related.filter(other => !subjectNorm || subjectNorm.length < 5 || !normalize(other).includes(subjectNorm));
+    const safeFallback = fallback.filter(other => !subjectNorm || subjectNorm.length < 5 || !normalize(other).includes(subjectNorm));
+    let pool = unique([...safeRelated, ...safeFallback]);
+    if (pool.length < 3) pool = unique([...related, ...fallback]);
     const distractors = shuffle(pool).slice(0, 3);
     const alternatives = shuffle(unique([fact, ...distractors]));
 
