@@ -406,19 +406,19 @@
       const leftNorm = normalize(left);
 
       if (/fim do monopolio/i.test(leftNorm) && /comercio livre/i.test(normalize(right))) {
-        return 'O fim do monopólio abriu espaço para o comércio livre.';
+        return cleanAnswer((subject || 'A Abertura dos Portos') + ' marcou o fim do monopólio e abriu espaço para o comércio livre.');
       }
       if (/povoamento do interior/i.test(leftNorm) && /fronteiras ampliadas/i.test(normalize(right))) {
-        return 'O povoamento do interior levou à ampliação das fronteiras.';
+        return cleanAnswer((subject || 'O povoamento do interior') + ' levou à ampliação das fronteiras.');
       }
       if (/surgimento de vilas e cidades/i.test(leftNorm) && /vida urbana nova/i.test(normalize(right))) {
-        return 'O surgimento de vilas e cidades deu origem a uma nova vida urbana.';
+        return cleanAnswer((subject || 'O surgimento de vilas e cidades') + ' deu origem a uma nova vida urbana.');
       }
       if (/tropeiros ligavam regioes/i.test(leftNorm) && /formacao de mercado interno/i.test(normalize(right))) {
         return 'A atuação dos tropeiros contribuiu para a formação de um mercado interno.';
       }
       if (/produtos ingleses mais baratos/i.test(leftNorm) && /industria brasileira prejudicada/i.test(normalize(right))) {
-        return 'Produtos ingleses mais baratos prejudicaram a indústria brasileira.';
+        return cleanAnswer((subject || 'Os Tratados de 1810') + ' fizeram com que produtos ingleses mais baratos prejudicassem a indústria brasileira.');
       }
 
       return cleanAnswer(subject || left) + ' levou a ' + cleanAnswer(right).replace(/[.]$/, '') + '.';
@@ -439,8 +439,7 @@
 
       if (bits.length >= 2 && /proibido|proibia/i.test(bits[1])) {
         const first = bits[0].replace(/^o\s+/i, '').trim();
-        const second = bits[1].replace(/^proibido\s+/i, 'o ').trim();
-        return cleanAnswer('O ' + first + ', e ' + second);
+        return cleanAnswer('Nas ' + cleanLabel(subject) + ', ' + first.toLowerCase() + ', e o ouro em pó era proibido.');
       }
 
       if (bits.length >= 2) {
