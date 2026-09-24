@@ -9,7 +9,12 @@
     'capítulo','capitulo'
   ]);
 
-  const normalize = value => String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const normalize = value => String(value || '')
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   const decodeEntities = value => String(value || '')
     .replace(/&nbsp;/gi, ' ')
@@ -19,44 +24,22 @@
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>');
 
-  const studyMetaPatterns = [
-    /\bboa prova\b/i,
-    /\b(?:ideia|ideia central)\s+para\s+decorar\b/i,
-    /\bpara decorar\b/i,
-    /\bo mais importante (?:é|e) entender\b/i,
-    /\blembre-se\b/i,
-    /\blembre\b/i,
-    /\bnão esqueça\b/i,
-    /\bn[ãa]o deixe de memorizar\b/i,
-    /\bmemorize\b/i,
-    /\bdecore\b/i,
-    /\bdica(?:s)?\s+de\s+prova\b/i,
-    /\bdica(?:s)?\s+para\s+a\s+prova\b/i,
-    /\bmacete(?:s)?\b/i,
-    /\bvale lembrar\b/i,
-    /\batenção\b/i,
-    /\bresumindo\b/i,
-    /\bem resumo\b/i,
-    /\bcai\s+na\s+prova\b/i,
-    /\bo que cai\s+na\s+prova\b/i,
-    /\bguarde\s+isso\b/i,
-    /\bna\s+hora\s+da\s+prova\b/i
-  ];
+  const isStudyMeta = text => /\b(?:boa prova|para decorar|ideia para decorar|ideia central|o mais importante|lembre-?se|memorize|decore|dica(?:s)?(?: de| para)\s+(?:a\s+)?prova|macete(?:s)?|vale lembrar|na hora da prova|guarde isso|resumindo|em resumo)\b/i.test(String(text || ''));
 
-  const isStudyMeta = text => studyMetaPatterns.some(pattern => pattern.test(String(text || '')));
+  const isQuestionLike = text => /^(?:por\s+que|por\s+quê|o\s+que|qual(?:\s+(?:foi|era|é))?|quais|como|quando|onde|quem)\b/i.test(String(text || '').trim());
+
+  const isOutline = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return false;
+    if (/\s*[+=>]\s*/.test(clean) && !/\b(?:é|são|foi|era|eram|ocorre|ocorreu|provocou|causou|levou|permitiu|deixou|ficou|volta|voltou|começou|aumentou|reduziu|produz|produziu|entra|entrou|defendia|defende|representa|significa)\b/i.test(clean)) return true;
+    return false;
+  };
 
   const isFragment = text => {
     const clean = String(text || '').replace(/\s+/g, ' ').trim();
     if (!clean) return true;
     if (/[→⇒—–:-]\s*$/.test(clean)) return true;
-    if (/(?:^|\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|à|aos|às|um|uma|o|a)$/i.test(clean)) return true;
-    return false;
-  };
-
-  const ensureSentence = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return '';
-    return /[.!?]$/.test(clean) ? clean : clean + '.';
+    return /(?:^|\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|à|aos|às|um|uma|o|a)$/i.test(clean);
   };
 
   const htmlToText = html => {
@@ -74,134 +57,121 @@
     return decodeEntities(source
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<\/?(p|div|h[1-6]|li|br|hr|section|article|blockquote|tr)(?:\s[^>]*)?>/gi, '\n')
+      .replace(/<\/?(?:p|div|h[1-6]|li|br|hr|section|article|blockquote|tr)(?:\s[^>]*)?>/gi, '\n')
       .replace(/<[^>]+>/g, ' ')
     ).replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
   };
 
-  const isQuestionLike = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    return /^(?:por\s+que|por\s+quê|o\s+que|qual(?:\s+foi|\s+era|\s+é)?|quais|como|quando|onde|quem)\b/i.test(clean);
-  };
-
-  const isMalformedQuestionFragment = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    return /^(?:por\s+que|por\s+quê|o\s+que|qual|quais|como|quando|onde|quem)\s+(?:a|o|os|as|um|uma|uma das|um dos)\s*:/i.test(clean);
-  };
+  const cleanLine = line => String(line || '')
+    .replace(/^[\s•▪●◦\-–—]+/, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/\bD\.\s+/g, 'D§ ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/D§\s+/g, 'D. ')
+    .trim();
 
   const splitFacts = text => {
-    const raw = htmlToText(text);
-    const pieces = [];
+    const lines = htmlToText(text).split(/\n+/).map(cleanLine).filter(Boolean);
+    const facts = [];
+    let pendingQuestion = null;
 
-    raw.split(/\n+/).forEach(line => {
-      const cleanLine = line
-        .replace(/^[\s•▪●◦\-–—]+/, '')
-        .replace(/^\d+[.)]\s*/, '')
-        .replace(/\bD\.\s+/g, 'D§ ')
-        .trim();
+    const addStatement = value => {
+      const fact = cleanLine(value);
+      if (!fact || fact.length < 24 || fact.length > 500) return;
+      if (isStudyMeta(fact) || isFragment(fact) || isOutline(fact)) return;
+      facts.push({ text: fact, kind: 'statement', answerText: fact });
+    };
 
-      if (!cleanLine || isStudyMeta(cleanLine) || isMalformedQuestionFragment(cleanLine)) return;
-
-      cleanLine.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/).forEach(part => {
-        const fact = part
-          .replace(/D§\s+/g, 'D. ')
-          .replace(/\s{2,}/g, ' ')
-          .trim();
-
-        if (
-          fact.length >= 24 &&
-          fact.length <= 500 &&
-          !isStudyMeta(fact) &&
-          !isFragment(fact) &&
-          !isMalformedQuestionFragment(fact)
-        ) {
-          pieces.push(fact);
-        }
-      });
-    });
-
-    const merged = [];
-    for (let i = 0; i < pieces.length; i++) {
-      const current = pieces[i];
-      const next = pieces[i + 1];
-      if (
-        /\?\s*$/.test(current) &&
-        isQuestionLike(current) &&
-        next &&
-        !isQuestionLike(next) &&
-        current.length + next.length + 1 <= 500
-      ) {
-        merged.push(current + ' ' + next);
-        i++;
-      } else {
-        merged.push(current);
-      }
-    }
-
-    return [...new Map(merged.map(item => [normalize(item), item])).values()];
-  };
-
-  const keywords = text => {
-    const count = new Map();
-    const display = new Map();
-    const words = htmlToText(text).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{4,}/g) || [];
-    words.forEach(word => {
-      const key = normalize(word);
-      if (stopWords.has(key) || /^\d+$/.test(key)) return;
-      count.set(key, (count.get(key) || 0) + 1);
-      display.set(key, word);
-    });
-    return [...count.entries()]
-      .sort((a,b) => b[1]-a[1] || b[0].length-a[0].length)
-      .slice(0, 60)
-      .map(x => display.get(x[0]));
-  };
-
-  const splitStudyGuide = guide => {
-    const raw = htmlToText(guide);
-    const lines = raw
-      .split(/\n+/)
-      .map(line => line.replace(/^[\s•▪●◦\-–—]+/, '').replace(/^\d+[.)]\s*/, '').trim())
-      .filter(Boolean);
-
-    const topics = [];
     for (const line of lines) {
       if (isStudyMeta(line)) continue;
-      const chunks = line.split(/\s*;\s*/).map(x => x.trim()).filter(Boolean);
-      for (const chunk of chunks) {
+
+      if (pendingQuestion) {
+        if (!isQuestionLike(line) && !isOutline(line) && line.length >= 10) {
+          facts.push({
+            text: pendingQuestion + ' ' + line,
+            kind: 'prompt',
+            prompt: pendingQuestion,
+            answerText: line
+          });
+          pendingQuestion = null;
+          continue;
+        }
+        pendingQuestion = null;
+      }
+
+      const qMark = line.indexOf('?');
+      if (qMark >= 8) {
+        const prompt = line.slice(0, qMark + 1).trim();
+        const rest = line.slice(qMark + 1).replace(/^\s*[:—–-]+\s*/, '').trim();
+
+        if (isQuestionLike(prompt)) {
+          if (rest.length >= 10 && !isStudyMeta(rest) && !isOutline(rest)) {
+            facts.push({ text: line, kind: 'prompt', prompt, answerText: rest });
+          } else {
+            pendingQuestion = prompt;
+          }
+          continue;
+        }
+      }
+
+      addStatement(line);
+    }
+
+    if (pendingQuestion) addStatement(pendingQuestion);
+
+    return [...new Map(facts.map(f => [normalize(f.text), f])).values()];
+  };
+
+  const meaningfulWords = value => (String(value || '').match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{3,}/g) || [])
+    .map(normalize)
+    .filter(word => word && !stopWords.has(word) && word.length >= 4);
+
+  const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
+
+  const shuffle = list => {
+    const copy = [...list];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const keywords = text => [...new Set(meaningfulWords(text))].slice(0, 60);
+
+  const splitStudyGuide = guide => {
+    const topics = [];
+    for (const line of htmlToText(guide).split(/\n+/).map(cleanLine).filter(Boolean)) {
+      if (isStudyMeta(line) || isFragment(line) || isOutline(line)) continue;
+      for (const chunk of line.split(/\s*;\s*/).map(x => x.trim()).filter(Boolean)) {
         if (chunk.length >= 3 && chunk.length <= 180 && !isFragment(chunk)) topics.push(chunk);
       }
     }
-
     return unique(topics);
   };
 
   const scoreFactAgainstGuide = (fact, guideTopics) => {
-    if (!guideTopics.length) return { score: 0, topic: '' };
-    const factNorm = normalize(fact);
-    const factWords = new Set(meaningfulWords(fact));
+    const factText = typeof fact === 'string' ? fact : fact.text;
+    if (!guideTopics.length || !factText) return { score: 0, topic: '' };
+
+    const factNorm = normalize(factText);
+    const factWords = new Set(meaningfulWords(factText));
     let best = { score: 0, topic: '' };
 
     for (const topic of guideTopics) {
-      if (isStudyMeta(topic)) continue;
-      const topicNorm = normalize(topic).trim();
-      const topicWords = [...new Set(meaningfulWords(topic))];
-      const topicYears = topic.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
-      const factYears = fact.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
-      if (!topicWords.length && !topicYears.length) continue;
-
+      const topicNorm = normalize(topic);
+      const topicWords = meaningfulWords(topic);
       let score = 0;
-      if (topicNorm.length >= 6 && factNorm.includes(topicNorm)) score += 12;
 
-      const matchingYears = topicYears.filter(year => factYears.includes(year));
-      if (matchingYears.length) score += matchingYears.length * 12;
+      if (topicNorm.length >= 5 && factNorm.includes(topicNorm)) score += 14;
 
       const shared = topicWords.filter(word => factWords.has(word)).length;
-      score += shared * 3;
+      score += shared * 4;
+      if (topicWords.length && shared / topicWords.length >= 0.5) score += 6;
 
-      const coverage = shared / topicWords.length;
-      if (coverage >= 0.5) score += 5;
-      if (coverage >= 0.8) score += 5;
+      const years = topicNorm.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
+      const factYears = factNorm.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
+      score += years.filter(year => factYears.includes(year)).length * 14;
 
       if (score > best.score) best = { score, topic };
     }
@@ -211,18 +181,7 @@
 
   const rankFactsByGuide = (facts, guideTopics) => facts
     .map(fact => ({ fact, ...scoreFactAgainstGuide(fact, guideTopics) }))
-    .sort((a,b) => b.score - a.score || a.fact.length - b.fact.length);
-
-  const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
-
-  const shuffle = list => {
-    const a = [...list];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
+    .sort((a,b) => b.score - a.score || a.fact.text.length - b.fact.text.length);
 
   const assemblePdfText = items => {
     const lineMap = new Map();
@@ -235,678 +194,310 @@
       if (!lineMap.has(key)) lineMap.set(key, []);
       lineMap.get(key).push({ value, x, width: Number(item && item.width || 0) });
     }
-
-    return [...lineMap.entries()]
-      .sort((a,b) => b[0] - a[0])
-      .map(entry => {
-        const itemsInLine = entry[1].sort((a,b) => a.x-b.x);
-        let line = '';
-        itemsInLine.forEach((item, idx) => {
-          const prev = itemsInLine[idx - 1];
-          const gap = prev ? item.x - (prev.x + prev.width) : Infinity;
-          const gluedLetters =
-            prev &&
-            prev.value.length === 1 &&
-            item.value.length === 1 &&
-            gap <= Math.max(2, prev.width * 0.6);
-          line += (idx && !gluedLetters ? ' ' : '') + item.value;
-        });
-        return line;
-      })
-      .join('\n');
+    return [...lineMap.entries()].sort((a,b) => b[0] - a[0]).map(entry => {
+      const row = entry[1].sort((a,b) => a.x - b.x);
+      let line = '';
+      row.forEach((item, i) => {
+        const prev = row[i - 1];
+        const gap = prev ? item.x - (prev.x + prev.width) : Infinity;
+        const glued = prev && prev.value.length === 1 && item.value.length === 1 && gap <= Math.max(2, prev.width * 0.6);
+        line += (i && !glued ? ' ' : '') + item.value;
+      });
+      return line;
+    }).join('\n');
   };
 
+  const extractRelation = fact => {
+    const obj = typeof fact === 'string' ? { text: fact, kind: 'statement', answerText: fact } : fact;
+    const text = obj.text;
 
+    if (obj.kind === 'prompt') return { type: 'prompt', prompt: obj.prompt, detail: obj.answerText, subject: obj.prompt };
 
-  const factParts = fact => {
-    const clean = String(fact || '')
-      .replace(/^\d+[.)]\s*/, '')
-      .replace(/^[•▪●◦\-–—]+\s*/, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
+    const date = text.match(/^\s*(?:(\d{1,2})\s+)?(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?(1[5-9]\d{2}|20\d{2})\b\s*[:—–-]\s*(.+)$/i);
+    if (date) return { type: 'date', year: date[2], subject: date[3].trim(), detail: date[3].trim() };
 
-    const yearAtStart = clean.match(/^\s*(1[5-9]\d{2}|20\d{2})\b/);
-    const dateAtStart = clean.match(/^\s*(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?\d{1,2}\s+(?:de\s+)?[A-Za-zÀ-ÿ]+\s+(?:de\s+)?(1[5-9]\d{2}|20\d{2})\b/i);
-    const dayMonthYearAtStart = clean.match(/^\s*(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
-    const monthYearAtStart = clean.match(/^\s*(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
-    const questionMark = clean.indexOf('?');
-    if (questionMark >= 8) {
-      const prompt = clean.slice(0, questionMark + 1).trim();
-      const remainder = clean.slice(questionMark + 1)
-        .replace(/^\s*[:—–-]+\s*/, '')
-        .replace(/^\s*[→⇒]+\s*/, '')
-        .trim();
+    const arrow = text.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+    if (arrow.length >= 2) return { type: arrow.length >= 3 ? 'sequence' : 'relation', subject: arrow[0], parts: arrow, detail: arrow.slice(1).join(' → ') };
 
-      if (isQuestionLike(prompt)) {
-        if (remainder.length >= 10) {
-          return { subject: prompt, prompt, detail: remainder, relation: 'prompt' };
-        }
-        return { subject: prompt, prompt, detail: '', relation: 'questionOnly' };
-      }
+    const change = text.match(/^(.+?)\s+(mudou|passou de|foi substitu[ií]do por|deixou de)\s+(.+)$/i);
+    if (change) return { type: 'change', subject: change[1].trim(), verb: change[2], detail: change[3].trim() };
+
+    const cause = text.match(/^(.+?)\s+(?:ocorreu|aconteceu)\s+porque\s+(.+)$/i);
+    if (cause) return { type: 'cause', subject: cause[1].trim(), detail: cause[2].trim() };
+
+    const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram)\s+(.+)$/i);
+    if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
+
+    const colon = text.indexOf(':');
+    if (colon > 3 && colon < 120) {
+      const subject = text.slice(0, colon).trim();
+      const detail = text.slice(colon + 1).trim();
+      if (subject && detail) return { type: 'detail', subject, detail };
     }
 
-    const colon = clean.indexOf(':');
-    const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-    const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
-    const year = clean.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/);
-    const change = clean.match(/^(.+?)\s+(mudou|passou de|foi substitu[ií]do por|deixou de)\s+(.+)$/i);
-    const cause = clean.match(/^(.*?)(porque|pois|devido a|por causa de|em razão de)\s+(.+)$/i);
-    const markerList = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido'];
-    const marker = markerList.find(item => normalize(clean).includes(normalize(item)));
+    const definition = text.match(/^(.+?)\s+(é|são|era|eram|foi|foram|significa|representa|corresponde a)\s+(.+)$/i);
+    if (definition) return { type: 'definition', subject: definition[1].trim(), verb: definition[2], detail: definition[3].trim() };
 
-    if (dayMonthYearAtStart || dateAtStart || monthYearAtStart) {
-      const dateMatch = dayMonthYearAtStart || dateAtStart || monthYearAtStart;
-      const yearValue = dayMonthYearAtStart ? dayMonthYearAtStart[3] : (dateAtStart ? dateAtStart[1] : monthYearAtStart[1]);
-      const detail = clean.replace(dateMatch[0], '').replace(/^\s*[-—:]+\s*/, '').trim();
-      const subject = detail.split(/\s*:\s*|\s+[→⇒]\s+/)[0].trim() || detail;
-      return { subject, detail: detail || clean, relation: 'date', year: yearValue };
-    }
-
-    if (yearAtStart) {
-      const rest = clean.replace(yearAtStart[0], '').replace(/^\s*[:—–-]\s*/, '').trim();
-      return { subject: rest.split(/\s*[→⇒]\s*/)[0].trim(), detail: rest || clean, relation: 'date', year: yearAtStart[1] };
-    }
-
-    if (arrowParts.length >= 3) {
-      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), sequence: arrowParts, relation: 'sequence' };
-    }
-
-    if (change) {
-      return { subject: change[1].trim(), detail: change[3].trim(), relation: 'change', verb: change[2] };
-    }
-
-    if (cause) {
-      return { subject: cause[1].trim(), detail: cause[3].trim(), relation: 'cause', connector: cause[2] };
-    }
-
-    if (colon > 4 && colon < 140) {
-      const subject = clean.slice(0, colon).trim();
-      const rest = clean.slice(colon + 1).trim();
-      const restArrow = rest.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-      if (restArrow.length >= 3) return { subject, detail: restArrow.join(' → '), sequence: [subject, ...restArrow], relation: 'sequence' };
-      if (restArrow.length >= 2) return { subject, detail: restArrow.join(' → '), relation: 'relation' };
-      const restDash = rest.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
-      if (restDash.length >= 2) return { subject, detail: restDash.join(' — '), relation: 'explanation' };
-      return { subject, detail: rest, relation: 'detail' };
-    }
-
-    if (arrowParts.length >= 2) {
-      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relation' };
-    }
-
-    if (dashParts.length >= 2) {
-      return { subject: dashParts[0], detail: dashParts.slice(1).join(' — '), relation: 'explanation' };
-    }
-
-    if (marker && clean.length > normalize(marker).length + 5) {
-      const idx = normalize(clean).indexOf(normalize(marker));
-      const subject = clean
-        .slice(0, idx)
-        .replace(/[,:;-]\s*$/, '')
-        .replace(/\s+(?:e|que|porque|pois)\s*$/i, '')
-        .trim();
-      return { subject, detail: clean.slice(idx).trim(), relation: 'consequence' };
-    }
-
-    if (year) {
-      return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date', year: year[0] };
-    }
-
-    const lead = clean.match(/^(Durante|Nesse|Neste|Nesta|Assim|Por isso|Além disso|Em seguida|No processo|Nesse processo|Durante esse processo)\s+([^,]+),\s*(.+)$/i);
-    const withoutLead = lead ? lead[3].trim() : clean;
-
-    const punctuationParts = withoutLead.split(/\s*[,;]\s*/).map(x => x.trim()).filter(Boolean);
-    if (punctuationParts.length >= 2 && punctuationParts[0].split(/\s+/).length <= 5) {
-      return { subject: punctuationParts[0], detail: punctuationParts.slice(1).join(', '), relation: 'general' };
-    }
-
-    const words = withoutLead.split(/\s+/);
-    const verbWords = new Set([
-      'é','e','são','sao','foi','foram','era','eram','está','esta','estão','estao','estava','estavam','ocorre','ocorreu','ocorrem',
-      'acontece','aconteceu','acontecem','absorve','absorveu','absorvem','entra','entrou','entram','participa',
-      'participou','participam','contribui','contribuiu','contribuem','aumenta','aumentou','aumentam','cresce','cresceram',
-      'cresceu','crescem','começou','comecou','começam','comecam','envolveu','envolve','envolvem','facilitou','facilitam','facilita','facilitaram',
-      'provoca','provocou','provocam','defende','defendia','defendem','defenderam','pertence','pertencia','pertencem',
-      'transporta','transportou','transportam','libera','liberou','liberam','produz','produziu','produzem',
-      'resultou','resulta','resultaram','levou','leva','levaram','permite','permitiu','permitiram','prejudica','prejudicou',
-      'ficou','fica','ficam','voltou','volta','voltam','decidiu','decide','decidem','recebeu','recebe','recebem'
-    ].map(normalize));
-
-    let verbIndex = -1;
-    for (let i = 1; i < words.length; i++) {
-      const word = normalize(words[i]).replace(/[.,!?;:]/g,'');
-      if (verbWords.has(word)) {
-        verbIndex = i;
-        break;
-      }
-    }
-
-    if (verbIndex >= 1) {
-      return {
-        subject: words.slice(0, verbIndex).join(' '),
-        detail: words.slice(verbIndex).join(' '),
-        relation: 'general'
-      };
-    }
-
-    if (words.length >= 6) {
-      const splitAt = Math.min(4, Math.max(2, Math.floor(words.length * 0.35)));
-      return {
-        subject: words.slice(0, splitAt).join(' '),
-        detail: words.slice(splitAt).join(' '),
-        relation: 'general'
-      };
-    }
-
-    return {
-      subject: words.slice(0, Math.min(2, words.length)).join(' '),
-      detail: words.slice(Math.min(2, words.length)).join(' ') || clean,
-      relation: 'general'
-    };
+    return { type: 'general', subject: text.replace(/[.]$/, '').trim(), detail: text };
   };
 
-  const relatedFacts = (fact, facts) => {
-    const parts = factParts(fact);
-    const seedWords = parts.subject
-      .split(/\s+/)
-      .map(w => normalize(w).replace(/[^a-z0-9]/g,''))
-      .filter(w => w.length >= 5 && !stopWords.has(w))
-      .slice(0, 4);
-
-    return facts
-      .filter(other => normalize(other) !== normalize(fact))
-      .map(other => {
-        const otherNorm = normalize(other);
-        const score = seedWords.reduce((sum, word) => sum + (otherNorm.includes(word) ? 1 : 0), 0);
-        return { other, score };
-      })
-      .filter(item => item.score > 0)
-      .sort((a,b) => b.score - a.score || a.other.length - b.other.length)
-      .map(item => item.other);
-  };
-
-  const shorten = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    if (clean.length <= 180) return clean;
-    return clean.slice(0, 177).replace(/\s+\S*$/, '') + '…';
-  };
-
-  const naturalizeAnswer = (fact, parts) => {
-    const original = cleanAnswer(ensureSentence(fact));
-    const detail = cleanAnswer(ensureSentence(parts.detail || ''));
-    const subject = cleanLabel(parts.subject || '');
-
-    if (parts.relation === 'prompt') {
-      const promptDetail = String(parts.detail || '').trim();
-      if (/\s\+\s/.test(promptDetail)) {
-        return cleanAnswer('O conteúdo relaciona ' + promptDetail.replace(/\s*\+\s*/g, ' e '));
-      }
-      return cleanAnswer(promptDetail || original);
-    }
-    if (parts.relation === 'questionOnly') return '';
-
-    if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 2) {
-      return cleanAnswer('A sequência apresentada foi: ' + parts.sequence.join(' → '));
-    }
-
-    const arrowBits = String(parts.detail || '')
-      .split(/\s+[→⇒]\s+/)
-      .map(x => x.replace(/[.]$/, '').trim())
-      .filter(Boolean);
-
-    if (parts.relation === 'relation' && arrowBits.length >= 2) {
-      const left = arrowBits[0];
-      const right = arrowBits.slice(1).join(' e ');
-      const leftNorm = normalize(left);
-
-      if (/fim do monopolio/i.test(leftNorm) && /comercio livre/i.test(normalize(right))) {
-        return cleanAnswer((subject || 'A Abertura dos Portos') + ' marcou o fim do monopólio e abriu espaço para o comércio livre.');
-      }
-      if (/povoamento do interior/i.test(leftNorm) && /fronteiras ampliadas/i.test(normalize(right))) {
-        return cleanAnswer((subject || 'O povoamento do interior') + ' levou à ampliação das fronteiras.');
-      }
-      if (/surgimento de vilas e cidades/i.test(leftNorm) && /vida urbana nova/i.test(normalize(right))) {
-        return cleanAnswer((subject || 'O surgimento de vilas e cidades') + ' deu origem a uma nova vida urbana.');
-      }
-      if (/tropeiros ligavam regioes/i.test(leftNorm) && /formacao de mercado interno/i.test(normalize(right))) {
-        return 'A atuação dos tropeiros contribuiu para a formação de um mercado interno.';
-      }
-      if (/produtos ingleses mais baratos/i.test(leftNorm) && /industria brasileira prejudicada/i.test(normalize(right))) {
-        return cleanAnswer((subject || 'Os Tratados de 1810') + ' fizeram com que produtos ingleses mais baratos prejudicassem a indústria brasileira.');
-      }
-
-      return cleanAnswer(subject || left) + ' levou a ' + cleanAnswer(right).replace(/[.]$/, '') + '.';
-    }
-
-    if (parts.relation === 'change') {
-      const changeDetail = String(parts.detail || '').replace(/[.]$/, '').replace(/\s{2,}/g, ' ').trim();
-      if (subject && changeDetail) {
-        return cleanAnswer(subject + ' ' + (parts.verb || 'mudou') + ' ' + changeDetail);
-      }
-    }
-
-    if (parts.relation === 'explanation') {
-      const bits = String(parts.detail || '')
-        .split(/\s+[—–-]\s+/)
-        .map(x => x.trim())
-        .filter(Boolean);
-
-      if (bits.length >= 2 && /proibido|proibia/i.test(bits[1])) {
-        const first = bits[0].replace(/^o\s+/i, '').trim();
-        return cleanAnswer('Nas ' + cleanLabel(subject) + ', o ' + first.toLowerCase() + ', e o ouro em pó era proibido.');
-      }
-
-      if (bits.length >= 2) {
-        return cleanAnswer(bits[0] + ', e ' + bits.slice(1).join(', e '));
-      }
-    }
-
-    if (parts.relation === 'consequence') {
-      return original;
-    }
-
-    if (parts.relation === 'date') {
-      let body = String(parts.detail || fact || '').trim();
-      body = body.replace(/^\s*[^:]+:\s*/, '').replace(/^\s*[-—:]+\s*/, '').trim();
-      const arrow = body.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-
-      if (/^Brasil\s*=\s*Reino Unido a Portugal/i.test(body)) {
-        return 'Em ' + parts.year + ', o Brasil tornou-se Reino Unido a Portugal e deixou de ser colônia.';
-      }
-      if (/^Independência\s*:/i.test(body)) {
-        return 'Em ' + parts.year + ', a Independência foi marcada pelo Grito do Ipiranga e deu origem ao Império do Brasil.';
-      }
-      if (/^D\.\s*João volta/i.test(body) || /^D\.\s*João voltou/i.test(body)) {
-        return 'Em ' + parts.year + ', D. João voltou e D. Pedro permaneceu no Brasil.';
-      }
-      if (arrow.length >= 2) {
-        body = arrow[0].replace(/[.]$/, '') + ' e ' + arrow.slice(1).join(' e ');
-      }
-      body = body.replace(/\s*=\s*/g, ' passou a ser ');
-      return ensureSentence(body);
-    }
-
-    return original;
-  };
-
-  const answerUnit = naturalizeAnswer;
-
-  const cleanAnswer = value => {
-    let clean = String(value || '')
-      .replace(/^\s*[•▪●◦\-–—]+/, '')
-      .replace(/\s{2,}/g, ' ')
+  const cleanSentence = value => {
+    const text = String(value || '')
+      .replace(/\s+/g, ' ')
       .replace(/\.{2,}/g, '.')
       .replace(/\s+([,.;:!?])/g, '$1')
       .trim();
-
-    if (!clean) return '';
-    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
-    if (!/[.!?]$/.test(clean)) clean += '.';
-    return clean;
+    if (!text) return '';
+    return /[.!?]$/.test(text) ? text : text + '.';
   };
 
-  const cleanLabel = value => cleanAnswer(value)
-    .replace(/[.:;]+$/, '')
-    .trim();
-
-  const combineLabelAndDetail = (label, detail) => {
-    const left = cleanLabel(label);
-    const right = cleanAnswer(detail).replace(/[.]$/, '');
-    if (!left) return cleanAnswer(right);
-    if (!right) return cleanAnswer(left);
-    return cleanAnswer(left + ': ' + right);
+  const cleanAnswer = value => {
+    let text = cleanSentence(value).replace(/^[•▪●◦\-–—]+\s*/, '').trim();
+    if (!text) return '';
+    return text.charAt(0).toUpperCase() + text.slice(1);
   };
 
-  const questionTemplates = {
-    prompt: [
-      p => p.prompt,
-      p => 'Segundo o conteúdo, ' + p.prompt.charAt(0).toLowerCase() + p.prompt.slice(1),
-      p => 'Considerando o resumo, ' + p.prompt.charAt(0).toLowerCase() + p.prompt.slice(1)
-    ],
-    sequence: [
-      p => 'Qual sequência resume os acontecimentos apresentados a partir de "' + p.subject + '"?',
-      p => 'Ao analisar "' + p.subject + '", qual sequência de acontecimentos aparece no conteúdo?',
-      p => 'Qual cadeia de acontecimentos é descrita no resumo começando por "' + p.subject + '"?'
-    ],
-    relation: [
-      p => 'O que aconteceu a partir de "' + p.subject + '"?',
-      p => 'Que mudança no processo está diretamente ligada a "' + p.subject + '"?',
-      p => 'Qual resultado aparece associado a "' + p.subject + '" no conteúdo estudado?'
-    ],
-    detail: [
-      p => p.detail && /%/.test(p.detail)
-        ? 'Qual valor está associado a "' + p.subject + '" e o que ele representa?'
-        : p.detail && /órgão|controle|função|fiscalização/i.test(p.detail)
-          ? 'Qual era a função de "' + p.subject + '" no período estudado?'
-          : p.detail && /proibido|proibia/i.test(p.detail)
-            ? 'O que era proibido em relação a "' + p.subject + '"?'
-            : 'Qual característica ou informação define "' + p.subject + '" nesse contexto?',
-      p => 'Como "' + p.subject + '" é caracterizado no conteúdo?',
-      p => 'Que informação específica ajuda a explicar "' + p.subject + '"?'
-    ],
-    change: [
-      p => 'Como "' + p.subject + '" mudou segundo o conteúdo estudado?',
-      p => 'Qual transformação é descrita em "' + p.subject + '"?',
-      p => 'O que mudou em "' + p.subject + '" ao longo do processo apresentado?'
-    ],
-    cause: [
-      p => 'Que explicação o conteúdo apresenta para o que ocorreu com "' + p.subject + '"?',
-      p => 'Qual motivo ajuda a explicar "' + p.subject + '" segundo o resumo?',
-      p => 'O que explica o acontecimento envolvendo "' + p.subject + '"?'
-    ],
-    consequence: [
-      p => 'Qual foi a consequência de "' + p.subject + '"?',
-      p => 'O que "' + p.subject + '" provocou segundo o conteúdo?',
-      p => 'Que efeito aparece associado a "' + p.subject + '"?'
-    ],
-    explanation: [
-      p => 'Como o conteúdo caracteriza "' + p.subject + '"?',
-      p => 'Como "' + p.subject + '" funcionava ou era tratado no contexto estudado?',
-      p => 'Qual característica ajuda a entender o papel de "' + p.subject + '"?'
-    ],
-    date: [
-      p => 'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
-      p => 'Qual acontecimento importante está associado a ' + p.year + '?',
-      p => 'Que fato do tema é localizado em ' + p.year + '?'
-    ],
-    general: [
-      p => 'Qual afirmação descreve melhor "' + p.subject + '" no contexto estudado?',
-      p => 'Que informação específica ajuda a compreender "' + p.subject + '"?',
-      p => 'Qual característica de "' + p.subject + '" é destacada no conteúdo?'
-    ]
+  const answerForFact = fact => {
+    const obj = typeof fact === 'string' ? { text: fact, kind: 'statement', answerText: fact } : fact;
+    if (obj.kind === 'prompt') return cleanAnswer(obj.answerText);
+
+    const p = extractRelation(obj);
+    if (p.type === 'sequence') return cleanAnswer('A sequência apresentada é: ' + p.parts.join(' → '));
+    return cleanAnswer(obj.answerText || obj.text);
   };
 
-  const meaningfulWords = value => (String(value || '').match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{3,}/g) || [])
-    .map(word => normalize(word))
-    .filter(word => !stopWords.has(word) && word.length >= 4);
+  const questionForFact = fact => {
+    const p = extractRelation(fact);
+    if (p.type === 'prompt') return [p.prompt];
 
-  const questionLeaksAnswer = (question, answer) => {
+    switch (p.type) {
+      case 'sequence':
+        return [
+          'Qual sequência de acontecimentos é apresentada a partir de "' + p.subject + '"?',
+          'Como os acontecimentos ligados a "' + p.subject + '" se encadeiam?'
+        ];
+      case 'relation':
+        return [
+          'O que aconteceu a partir de "' + p.subject + '"?',
+          'Qual resultado é apresentado após "' + p.subject + '"?'
+        ];
+      case 'change':
+        return [
+          'Como "' + p.subject + '" mudou segundo o conteúdo?',
+          'Qual transformação ocorreu em "' + p.subject + '"?'
+        ];
+      case 'cause':
+        return [
+          'Por que "' + p.subject + '" aconteceu?',
+          'Que causa explica "' + p.subject + '"?'
+        ];
+      case 'consequence':
+        return [
+          'O que "' + p.subject + '" provocou?',
+          'Qual foi o efeito de "' + p.subject + '"?'
+        ];
+      case 'date':
+        return [
+          'O que aconteceu em ' + p.year + '?',
+          'Qual acontecimento está associado a ' + p.year + '?'
+        ];
+      case 'definition':
+        return [
+          'O que significa "' + p.subject + '" no contexto estudado?',
+          'Qual definição explica "' + p.subject + '"?'
+        ];
+      case 'detail':
+        if (/%/.test(p.detail)) return ['Qual valor ou porcentagem está associado a "' + p.subject + '"?'];
+        if (/órgão|controle|fiscalização|função/i.test(p.detail)) return ['Qual era a função de "' + p.subject + '" no período estudado?'];
+        if (/proibido|proibia/i.test(p.detail)) return ['O que era proibido em relação a "' + p.subject + '"?'];
+        return [
+          'Qual característica define "' + p.subject + '" no contexto estudado?',
+          'Que informação específica ajuda a compreender "' + p.subject + '"?'
+        ];
+      default:
+        return [
+          'Qual afirmação descreve corretamente "' + p.subject + '"?',
+          'Que característica ajuda a compreender "' + p.subject + '"?'
+        ];
+    }
+  };
+
+  const questionLeaksAnswer = (question, answer, subject = '') => {
     const qNorm = normalize(question);
     const aNorm = normalize(answer);
-    if (!aNorm || aNorm.length < 6) return false;
+    if (!aNorm) return false;
     if (qNorm.includes(aNorm)) return true;
 
-    const answerWords = [...new Set(meaningfulWords(answer))];
-    const questionWords = new Set(meaningfulWords(question));
+    const qWords = new Set(meaningfulWords(question));
+    const subjectWords = new Set(meaningfulWords(subject));
+    const answerWords = [...new Set(meaningfulWords(answer))]
+      .filter(word => !subjectWords.has(word));
     if (answerWords.length < 3) return false;
 
-    const overlap = answerWords.filter(word => questionWords.has(word)).length / answerWords.length;
-    return overlap >= 0.72;
+    const overlap = answerWords.filter(word => qWords.has(word)).length / answerWords.length;
+    return overlap >= 0.75;
+  };
+
+  const candidateLeaksCorrectAnswer = (candidate, answer) => {
+    const cNorm = normalize(candidate);
+    const aNorm = normalize(answer);
+    if (!aNorm) return false;
+    if (cNorm.includes(aNorm)) return true;
+
+    const aWords = [...new Set(meaningfulWords(answer))];
+    const cWords = new Set(meaningfulWords(candidate));
+    if (aWords.length < 3) return false;
+
+    return aWords.filter(word => cWords.has(word)).length / aWords.length >= 0.88;
   };
 
   const answerSimilarity = (a, b) => {
     const aw = new Set(meaningfulWords(a));
     const bw = new Set(meaningfulWords(b));
     if (!aw.size || !bw.size) return 0;
-    const intersection = [...aw].filter(word => bw.has(word)).length;
+    const inter = [...aw].filter(word => bw.has(word)).length;
     const union = new Set([...aw, ...bw]).size;
-    return intersection / union;
+    return inter / union;
   };
 
-  const candidateLeaksCorrectAnswer = (candidate, answer) => {
-    const candidateNorm = normalize(candidate);
-    const answerNorm = normalize(answer);
-    if (!answerNorm || answerNorm.length < 8) return false;
-    if (candidateNorm.includes(answerNorm)) return true;
-
-    const answerWords = [...new Set(meaningfulWords(answer))];
-    const candidateWords = new Set(meaningfulWords(candidate));
-    if (answerWords.length < 3) return false;
-
-    const overlap = answerWords.filter(word => candidateWords.has(word)).length / answerWords.length;
-    return overlap >= 0.88;
+  const scoreDistractor = (answer, question, candidate, type, candidateType, guideTopic) => {
+    const sim = answerSimilarity(answer, candidate);
+    const lengthScore = Math.max(0, 8 - Math.abs(answer.length - candidate.length) / 22);
+    const sameType = type === candidateType ? 12 : 0;
+    const questionWords = new Set(meaningfulWords(question));
+    const sharedContext = meaningfulWords(candidate).filter(word => questionWords.has(word)).length;
+    const guideBonus = guideTopic && normalize(candidate).includes(normalize(guideTopic)) ? 6 : 0;
+    return sameType + sharedContext * 1.5 + lengthScore + guideBonus - sim * 3;
   };
 
-  const makeNearMiss = (fact, parts, otherFact) => {
-    const otherParts = factParts(otherFact);
-    if (normalize(otherFact) === normalize(fact)) return '';
+  const makeDistractors = (fact, allFacts, answer, question, guideTopic) => {
+    const target = extractRelation(fact);
+    const ranked = [];
 
-    const targetSubject = cleanLabel(parts.subject || '');
-    const otherDetail = cleanAnswer(otherParts.detail || naturalizeAnswer(otherFact, otherParts));
+    for (const other of allFacts) {
+      if (normalize(other.text) === normalize(fact.text)) continue;
+      const candidate = answerForFact(other);
+      if (!candidate || candidate.length < 18 || isStudyMeta(candidate) || isFragment(candidate)) continue;
+      if (normalize(candidate) === normalize(answer)) continue;
+      if (candidateLeaksCorrectAnswer(candidate, answer)) continue;
 
-    if (!targetSubject || !otherDetail) return '';
-    if (parts.relation === 'prompt' || parts.relation === 'questionOnly') {
-      return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
+      const type = extractRelation(other).type;
+      ranked.push({
+        candidate,
+        score: scoreDistractor(answer, question, candidate, target.type, type, guideTopic)
+      });
     }
 
-    if (parts.relation === 'sequence' && otherParts.relation === 'sequence' && otherParts.sequence?.length >= 3) {
-      return cleanAnswer('A sequência apresentada foi: ' + [parts.sequence[0], ...otherParts.sequence.slice(1)].join(' → '));
+    ranked.sort((a,b) => b.score - a.score);
+    const result = [];
+    for (const item of ranked) {
+      if (result.some(value => normalize(value) === normalize(item.candidate))) continue;
+      if (answerSimilarity(answer, item.candidate) > 0.94) continue;
+      result.push(item.candidate);
+      if (result.length === 3) break;
     }
-
-    if (parts.relation === 'relation' && otherParts.relation === 'relation') {
-      const targetBits = String(parts.detail || '').split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-      const otherBits = String(otherParts.detail || '').split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-      if (targetBits.length >= 2 && otherBits.length >= 2) {
-        return cleanAnswer(otherBits[0] + ' levou a ' + otherBits.slice(1).join(' e '));
-      }
-    }
-
-    if (parts.relation === 'date' && otherParts.relation === 'date') {
-      const body = cleanAnswer(naturalizeAnswer(otherFact, otherParts)).replace(/^Em\s+\d{4}[,:-]?\s*/i, '');
-      if (body) return cleanAnswer('Em ' + parts.year + ', ' + body);
-    }
-
-    if (parts.relation === 'consequence' && otherParts.relation === 'consequence') {
-      return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
-    }
-
-    if (['detail','explanation','general','change','relation','consequence'].includes(parts.relation)) {
-      return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
-    }
-
-    if (parts.relation === 'date' && otherParts.relation === 'date') {
-      const body = cleanAnswer(naturalizeAnswer(otherFact, otherParts)).replace(/^Em\s+\d{4}[,:-]?\s*/i, '');
-      if (body) return cleanAnswer('Em ' + parts.year + ', ' + body);
-    }
-
-    return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
+    return result;
   };
 
-  const scoreDistractor = (answer, question, candidate) => {
-    const similarity = answerSimilarity(answer, candidate);
-    const lengthDelta = Math.abs(answer.length - candidate.length);
-    const wordOverlap = [...new Set(meaningfulWords(candidate))].filter(word => normalize(question).includes(word)).length;
-    return similarity * 10 + Math.max(0, 8 - lengthDelta / 25) + wordOverlap * 0.2;
-  };
+  const buildQuestion = (fact, allFacts, seed, guideTopic = '') => {
+    const answer = answerForFact(fact);
+    if (!answer || answer.length < 14 || isStudyMeta(answer) || isFragment(answer)) return null;
 
-  const makeDetailedQuestion = (fact, facts, seed, preferredFacts = facts) => {
-    const parts = factParts(fact);
-    const answer = cleanAnswer(naturalizeAnswer(fact, parts));
-    if (!answer || parts.relation === 'questionOnly') return null;
-    const templates = questionTemplates[parts.relation] || questionTemplates.general;
-
+    const subject = extractRelation(fact).subject || '';
+    const variants = questionForFact(fact);
     let question = '';
-    for (let attempt = 0; attempt < templates.length; attempt++) {
-      const templateIndex = (Math.abs(Number(seed) || 0) + attempt) % templates.length;
-      const candidateQuestion = templates[templateIndex](parts);
-      if (
-        candidateQuestion.length >= 45 &&
-        !isStudyMeta(candidateQuestion) &&
-        !questionLeaksAnswer(candidateQuestion, answer)
-      ) {
-        question = candidateQuestion;
+    for (let i = 0; i < variants.length; i++) {
+      const candidate = variants[(Math.abs(seed) + i) % variants.length];
+      if (candidate && candidate.length >= 40 && !isStudyMeta(candidate) && !questionLeaksAnswer(candidate, answer, subject)) {
+        question = candidate;
         break;
       }
     }
+    if (!question) return null;
 
-    if (!question || !answer || isFragment(answer)) return null;
-
-    const targetSubject = cleanLabel(parts.subject || '');
-    const pool = unique([...preferredFacts, ...facts])
-      .filter(other => normalize(other) !== normalize(fact))
-      .map(other => {
-        const otherParts = factParts(other);
-        const otherAnswer = cleanAnswer(naturalizeAnswer(other, otherParts));
-        const nearMiss = makeNearMiss(fact, parts, other);
-        const candidate = cleanAnswer(nearMiss || otherAnswer);
-        const subjectBoost = targetSubject.length >= 5 && normalize(candidate).includes(normalize(targetSubject)) ? 4 : 0;
-        return { other, candidate, similarity: scoreDistractor(answer, question, candidate) + subjectBoost };
-      })
-      .filter(item => item.candidate)
-      .filter(item => !isStudyMeta(item.candidate))
-      .filter(item => !isFragment(item.candidate))
-      .filter(item => normalize(item.candidate) !== normalize(answer))
-      .filter(item => !candidateLeaksCorrectAnswer(item.candidate, answer))
-      .sort((a,b) => b.similarity - a.similarity);
-
-    const distinct = [];
-    for (const item of pool) {
-      if (distinct.some(existing => normalize(existing) === normalize(item.candidate))) continue;
-      // Evita que todos os distratores sejam praticamente iguais à correta.
-      if (answerSimilarity(answer, item.candidate) > 0.94) continue;
-      distinct.push(item);
-      if (distinct.length === 3) break;
-    }
-
-    // Complete a cota usando respostas integrais do próprio resumo.
-    if (distinct.length < 3) {
-      for (const item of pool) {
-        if (distinct.some(existing => normalize(existing) === normalize(item.candidate))) continue;
-        if (answerSimilarity(answer, item.candidate) > 0.97) continue;
-        distinct.push(item);
-        if (distinct.length === 3) break;
-      }
-    }
-
-    const alternatives = shuffle(unique([answer, ...distinct.map(item => item.candidate)]));
-    if (alternatives.length !== 4) return null;
+    const distractors = makeDistractors(fact, allFacts, answer, question, guideTopic);
+    if (distractors.length < 3) return null;
 
     return {
       question,
       answer,
-      alternatives,
-      sourceFact: fact,
-      explanation: 'A resposta é sustentada diretamente pelo trecho do resumo: "' + shorten(fact) + '"'
+      alternatives: shuffle(unique([answer, ...distractors])),
+      sourceFact: fact.text,
+      guideTopic,
+      explanation: 'A resposta é sustentada pelo conteúdo do resumo: "' + fact.text + '"'
     };
   };
 
-  const generateQuizFromText = (text, desiredCount) => {
+  const generateQuizFromText = (text, desiredCount = 6) => {
     const facts = splitFacts(text);
     if (facts.length < 4) throw new Error('Não há informações suficientes para montar um quiz confiável.');
 
-    const count = Math.min(facts.length, 8, Math.max(4, Number(desiredCount) || 6));
+    const count = Math.min(8, facts.length, Math.max(4, Number(desiredCount) || 6));
     const questions = [];
     const used = new Set();
-    const usedQuestions = new Set();
 
-    const relationRank = {
-      sequence: 8,
-      relation: 7,
-      change: 6,
-      consequence: 6,
-      cause: 6,
-      detail: 5,
-      explanation: 5,
-      date: 5,
-      general: 3
-    };
-
-    const orderedFacts = shuffle(facts).sort((a,b) => {
-      return (relationRank[factParts(b).relation] || 0) - (relationRank[factParts(a).relation] || 0);
-    });
-
-    for (let i = 0; i < orderedFacts.length && questions.length < count; i++) {
-      const fact = orderedFacts[i];
-      const key = normalize(fact);
-      if (used.has(key)) continue;
-
-      let q = null;
-      for (let attempt = 0; attempt < 16; attempt++) {
-        const candidate = makeDetailedQuestion(
-          fact,
-          facts,
-          i * 17 + attempt + Math.floor(Math.random() * 1000)
-        );
-        if (!candidate) continue;
-        const questionKey = normalize(candidate.question);
-        if (usedQuestions.has(questionKey)) continue;
-        q = candidate;
-        break;
-      }
-
-      if (!q) continue;
-
-      questions.push(q);
-      used.add(key);
-      usedQuestions.add(normalize(q.question));
-    }
-
-    if (questions.length < 4) throw new Error('Não foi possível montar 4 perguntas confiáveis a partir do resumo.');
-    return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
-  };
-
-  const generateHybridQuiz = (summaryText, guideText, desiredCount) => {
-    const facts = splitFacts(summaryText);
-    if (facts.length < 4) throw new Error('Não há informações suficientes para montar um quiz confiável.');
-
-    const count = Math.min(facts.length, 8, Math.max(4, Number(desiredCount) || 6));
-    const guideTopics = splitStudyGuide(guideText);
-
-    if (!guideTopics.length) {
-      return generateQuizFromText(summaryText, count);
-    }
-
-    const ranked = rankFactsByGuide(facts, guideTopics);
-    const targeted = ranked.filter(item => item.score > 0).map(item => item.fact);
-    const nonTargeted = facts.filter(fact => !targeted.includes(fact));
-    const targetQuota = Math.min(targeted.length, Math.max(1, Math.ceil(count * 0.7)));
-
-    const selectedFacts = unique([
-      ...shuffle(targeted).slice(0, targetQuota),
-      ...shuffle(nonTargeted).slice(0, count - targetQuota)
-    ]);
-
-    if (selectedFacts.length < count) {
-      const remaining = ranked
-        .map(item => item.fact)
-        .filter(fact => !selectedFacts.includes(fact));
-      selectedFacts.push(...shuffle(remaining).slice(0, count - selectedFacts.length));
-    }
-
-    // A lista de fallback garante que uma questão inválida não reduza o quiz inteiro.
-    const candidateFacts = unique([
-      ...selectedFacts,
-      ...ranked.map(item => item.fact),
-      ...facts
-    ]);
-
-    const questions = [];
-    const usedQuestions = new Set();
-    const usedFacts = new Set();
-
-    for (let i = 0; i < candidateFacts.length && questions.length < count; i++) {
-      const fact = candidateFacts[i];
-      const factKey = normalize(fact);
-      if (usedFacts.has(factKey)) continue;
-
-      for (let attempt = 0; attempt < 18; attempt++) {
-        const guideMatch = scoreFactAgainstGuide(fact, guideTopics);
-        const preferredFacts = ranked
-          .filter(item => guideMatch.topic && item.topic === guideMatch.topic)
-          .map(item => item.fact);
-
-        const q = makeDetailedQuestion(
-          fact,
-          facts,
-          i * 31 + attempt + Math.floor(Math.random() * 3000),
-          preferredFacts.length ? preferredFacts : facts
-        );
-        if (!q) continue;
-
-        const questionKey = normalize(q.question);
-        if (usedQuestions.has(questionKey)) continue;
-
-        q.guideTopic = guideMatch.score > 0 ? guideMatch.topic : '';
-        questions.push(q);
-        usedQuestions.add(questionKey);
-        usedFacts.add(factKey);
-        break;
-      }
+    for (const [i, fact] of shuffle(facts).entries()) {
+      if (questions.length >= count || used.has(normalize(fact.text))) continue;
+      const built = buildQuestion(fact, facts, i * 41 + Math.floor(Math.random() * 1000));
+      if (!built || questions.some(q => normalize(q.question) === normalize(built.question))) continue;
+      questions.push(built);
+      used.add(normalize(fact.text));
     }
 
     if (questions.length < Math.min(4, count)) {
-      return generateQuizFromText(summaryText, count);
+      throw new Error('Não foi possível montar perguntas confiáveis a partir deste resumo.');
     }
+
+    return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
+  };
+
+  const generateHybridQuiz = (summaryText, guideText, desiredCount = 6) => {
+    const facts = splitFacts(summaryText);
+    if (facts.length < 4) throw new Error('Não há informações suficientes para montar um quiz confiável.');
+
+    const guideTopics = splitStudyGuide(guideText);
+    if (!guideTopics.length) return generateQuizFromText(summaryText, desiredCount);
+
+    const count = Math.min(8, facts.length, Math.max(4, Number(desiredCount) || 6));
+    const ranked = rankFactsByGuide(facts, guideTopics);
+    const targeted = ranked.filter(x => x.score > 0).map(x => x.fact);
+    const targetQuota = Math.min(targeted.length, Math.max(2, Math.ceil(count * 0.7)));
+
+    const selected = [];
+    for (const fact of shuffle(targeted)) {
+      if (selected.length >= targetQuota) break;
+      selected.push(fact);
+    }
+    for (const fact of shuffle(facts)) {
+      if (selected.length >= count) break;
+      if (!selected.includes(fact)) selected.push(fact);
+    }
+
+    const questions = [];
+    const used = new Set();
+
+    for (const [i, fact] of selected.entries()) {
+      if (questions.length >= count || used.has(normalize(fact.text))) continue;
+      const match = scoreFactAgainstGuide(fact, guideTopics);
+      const built = buildQuestion(fact, facts, i * 53 + Math.floor(Math.random() * 2000), match.score > 0 ? match.topic : '');
+      if (!built || questions.some(q => normalize(q.question) === normalize(built.question))) continue;
+      questions.push(built);
+      used.add(normalize(fact.text));
+    }
+
+    // Fill remaining slots with the best-ranked facts instead of falling back prematurely.
+    if (questions.length < count) {
+      for (const item of ranked) {
+        if (questions.length >= count || used.has(normalize(item.fact.text))) continue;
+        const match = item.score > 0 ? item.topic : '';
+        const built = buildQuestion(item.fact, facts, questions.length * 67, match);
+        if (!built || questions.some(q => normalize(q.question) === normalize(built.question))) continue;
+        questions.push(built);
+        used.add(normalize(item.fact.text));
+      }
+    }
+
+    if (questions.length < Math.min(4, count)) return generateQuizFromText(summaryText, count);
 
     return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
   };
@@ -915,19 +506,20 @@
     htmlToText,
     splitFacts,
     keywords,
-    factParts,
-    answerUnit,
+    extractRelation,
+    factParts: extractRelation,
+    answerUnit: answerForFact,
     questionLeaksAnswer,
-    assemblePdfText,
-    generateQuizFromText,
-    generateHybridQuiz,
     candidateLeaksCorrectAnswer,
+    answerSimilarity,
+    assemblePdfText,
     splitStudyGuide,
     scoreFactAgainstGuide,
     rankFactsByGuide,
+    generateQuizFromText,
+    generateHybridQuiz,
     isStudyMeta,
-    isFragment,
-    answerSimilarity
+    isFragment
   };
 
   if (typeof document === 'undefined') return;
