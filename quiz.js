@@ -62,9 +62,13 @@
     .trim();
 
   const splitSentences = text => cleanText(text)
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map(s => s.trim().replace(/^[-•·]+\s*/, ''))
-    .filter(s => s.length >= 35 && s.length <= 420);
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map(s => s
+      .replace(/^[\s•▪●◦\-–—]+/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    )
+    .filter(s => s.length >= 20 && s.length <= 500);
 
   const getKeywords = text => {
     const count = new Map();
@@ -297,7 +301,8 @@
 
     try {
       let source = [context.summary.introduction, context.summary.content].filter(Boolean).join('\n');
-      if (context.summary.contentType === 'pdf') source = await extractPdfText(context.pdfUrl);
+      source = cleanText(source);
+      if (context.summary.contentType === 'pdf' && source.length < 300) source = await extractPdfText(context.pdfUrl);
       quiz = generateQuizFromText(source, source.split(/\s+/).length > 700 ? 8 : 6);
       $('#quizTitle').textContent = context.summary.title || 'Quiz por IA';
       $('#quizSubtitle').textContent = 'Personalizado com base no conteúdo deste resumo';
