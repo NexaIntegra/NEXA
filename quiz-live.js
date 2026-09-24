@@ -400,7 +400,9 @@
   };
 
   const buildQuestion = (fact, allFacts, seed, guideTopic = '') => {
-    const answer = answerForFact(fact);
+    // A alternativa correta responde somente ao que a pergunta pede.
+    // A frase inteira continua disponível em sourceFact/explanation.
+    const answer = shortAnswerForFact(fact);
     if (!answer || answer.length < 14 || isStudyMeta(answer) || isFragment(answer)) return null;
 
     const subject = extractRelation(fact).subject || '';
