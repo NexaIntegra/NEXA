@@ -437,7 +437,11 @@
     const subject = cleanLabel(parts.subject || '');
 
     if (parts.relation === 'prompt') {
-      return cleanAnswer(parts.detail || original);
+      const promptDetail = String(parts.detail || '').trim();
+      if (/\s\+\s/.test(promptDetail)) {
+        return cleanAnswer('O conteúdo relaciona ' + promptDetail.replace(/\s*\+\s*/g, ' e '));
+      }
+      return cleanAnswer(promptDetail || original);
     }
     if (parts.relation === 'questionOnly') return '';
 
