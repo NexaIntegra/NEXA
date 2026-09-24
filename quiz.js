@@ -11,27 +11,44 @@
   const normalize = value => String(value || '').toLocaleLowerCase('pt-BR')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  const repairPdfSpacing = text => {
-    const input = String(text || '');
-    const tokens = input.split(/(\s+)/);
-    const output = [];
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      const prev = tokens[i - 1] || '';
-      const next = tokens[i + 1] || '';
-      if (
-        /^\s+$/.test(token) &&
-        prev.length === 1 &&
-        next.length === 1 &&
-        /^[A-Za-zÀ-ÿ0-9]$/.test(prev) &&
-        /^[A-Za-zÀ-ÿ0-9]$/.test(next)
-      ) continue;
-      output.push(token);
+  const repairPdfItemSpacing = value => {
+    const input = String(value || '').trim();
+    if (!input) return '';
+    const tokens = input.split(/\s+/);
+    if (tokens.length >= 3 && tokens.every(token => /^[A-Za-zÀ-ÿ0-9]$/.test(token))) {
+      return tokens.join('');
     }
-    return output.join('').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
+    return input;
   };
 
-  const cleanText = html => repairPdfSpacing(String(html || '')
+  const assemblePdfText = items => {
+    const ordered = (items || []).filter(item => item && String(item.str || '').trim()).map(item => ({
+      text: repairPdfItemSpacing(item.str),
+      x: Number(item.transform?.[4] || 0),
+      y: Number(item.transform?.[5] || 0),
+      width: Number(item.width || 0),
+      size: Math.max(1, Math.hypot(Number(item.transform?.[2] || 0), Number(item.transform?.[3] || 0)))
+    }));
+
+    const lines = [];
+    for (const item of ordered) {
+      let line = lines[lines.length - 1];
+      if (!line || Math.abs(item.y - line.y) > item.size * 0.55) {
+        line = { y: item.y, endX: item.x + item.width, size: item.size, parts: [] };
+        lines.push(line);
+      }
+
+      const gap = item.x - line.endX;
+      const addSpace = line.parts.length > 0 && gap > Math.max(1.2, item.size * 0.18);
+      line.parts.push((addSpace ? ' ' : '') + item.text);
+      line.endX = Math.max(line.endX, item.x + item.width);
+      line.size = Math.max(line.size, item.size);
+    }
+
+    return lines.map(line => line.parts.join('').replace(/\s{2,}/g, ' ').trim()).filter(Boolean).join('\n');
+  };
+
+  const cleanText = html => String(html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<\/?(p|div|h[1-6]|li|br|hr|section|article|blockquote|tr)>/gi, '\n')
@@ -42,7 +59,7 @@
     .replace(/&#39;/gi, "'")
     .replace(/[ \t]+/g, ' ')
     .replace(/ *\n */g, '\n')
-  );
+    .trim();
 
   const splitSentences = text => cleanText(text)
     .split(/(?<=[.!?])\s+|\n+/)
@@ -182,7 +199,8 @@
 
   window.nexaQuizEngine = {
     cleanText,
-    repairPdfSpacing,
+    repairPdfItemSpacing,
+    assemblePdfText,
     keywords: getKeywords,
     generateQuizFromText
   };
@@ -207,9 +225,8 @@
     let total = 0;
     for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
-      const data = await page.getTextContent();
-      const pageText = data.items.map(item => item.str || '').join(' ');
-      parts.push(repairPdfSpacing(pageText));
+      const data = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
+      parts.push(assemblePdfText(data.items));
       total += pageText.length;
       if (total >= 100000) break;
     }
