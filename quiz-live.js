@@ -381,12 +381,41 @@
     $('#quizFooter').innerHTML = '';
   };
 
+  let readerClosedForQuiz = false;
+
+  const reopenReaderAfterQuiz = () => {
+    const reader = $('#readerDialog');
+    if (reader && readerClosedForQuiz && !reader.open) {
+      try { reader.showModal(); } catch {}
+    }
+    readerClosedForQuiz = false;
+  };
+
   const openQuiz = async () => {
     const context = window.NEXA_ACTIVE_SUMMARY;
-    if (!context || !context.summary) return;
+    if (!context || !context.summary) {
+      const dialog = $('#quizDialog');
+      if (dialog && !dialog.open) {
+        dialog.showModal();
+        showError('Abra um resumo primeiro para gerar um quiz personalizado.');
+      }
+      return;
+    }
+
     const dialog = $('#quizDialog');
+    const reader = $('#readerDialog');
     if (!dialog) return;
-    if (!dialog.open) dialog.showModal();
+
+    try {
+      if (reader && reader.open) {
+        reader.close();
+        readerClosedForQuiz = true;
+      }
+      if (!dialog.open) dialog.showModal();
+    } catch (error) {
+      console.error('[NEXA Quiz] Não foi possível abrir o quiz:', error);
+      return;
+    }
 
     showLoading();
     quiz = [];
@@ -430,10 +459,32 @@
     }
   };
 
+  const bindQuizButton = () => {
+    const button = $('#aiQuizButton');
+    if (!button || button.dataset.quizBound === '1') return;
+    button.dataset.quizBound = '1';
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      openQuiz();
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindQuizButton, { once: true });
+  } else {
+    bindQuizButton();
+  }
+
   document.addEventListener('click', event => {
     const target = event.target;
-    if (target.closest('#aiQuizButton')) return openQuiz();
-    if (target.closest('#quizCloseBottom') || target.closest('.quiz-close-dialog')) return $('#quizDialog').close();
+    if (!(target instanceof Element)) return;
+    if (target.closest('#quizCloseBottom') || target.closest('.quiz-close-dialog')) {
+      const dialog = $('#quizDialog');
+      if (dialog && dialog.open) dialog.close();
+      reopenReaderAfterQuiz();
+      return;
+    }
     if (target.closest('#quizRetry')) return openQuiz();
     if (target.closest('#quizNext')) return nextQuestion();
     if (target.closest('#quizFinish')) return renderResult();
