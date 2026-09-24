@@ -782,7 +782,7 @@
 
   const generateQuizFromText = (text, desiredCount) => {
     const facts = splitFacts(text);
-    if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
+    if (facts.length < 4) throw new Error('Não há informações suficientes para montar um quiz confiável.');
 
     const count = Math.min(facts.length, 8, Math.max(4, Number(desiredCount) || 6));
     const questions = [];
@@ -831,7 +831,7 @@
       usedQuestions.add(normalize(q.question));
     }
 
-    if (questions.length < 5) throw new Error('Não foi possível montar 5 perguntas confiáveis a partir do resumo.');
+    if (questions.length < 4) throw new Error('Não foi possível montar 4 perguntas confiáveis a partir do resumo.');
     return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
   };
 
@@ -904,7 +904,7 @@
       }
     }
 
-    if (questions.length < Math.min(5, count)) {
+    if (questions.length < Math.min(4, count)) {
       return generateQuizFromText(summaryText, count);
     }
 
