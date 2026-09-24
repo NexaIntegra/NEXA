@@ -420,7 +420,15 @@
         return 'Produtos ingleses mais baratos prejudicaram a indústria brasileira.';
       }
 
-      return cleanAnswer(left + ' → ' + right);
+      return cleanAnswer(left + ' levou a ' + right);
+    }
+
+    if (parts.relation === 'change') {
+      const subject = cleanLabel(parts.subject || '');
+      const changeDetail = String(parts.detail || '').replace(/[.]$/, '').trim();
+      if (subject && changeDetail) {
+        return cleanAnswer(subject + ' ' + changeDetail);
+      }
     }
 
     if (parts.relation === 'explanation') {
@@ -430,11 +438,18 @@
         .filter(Boolean);
 
       if (bits.length >= 2 && /proibido|proibia/i.test(bits[1])) {
-        return 'O ' + bits[0].replace(/^o\s+/i,'') + ', e ' + bits[1].replace(/^proibido\s+/i, 'o ') + '.';
+        const first = bits[0].replace(/^o\s+/i, '').trim();
+        const second = bits[1].replace(/^proibido\s+/i, 'o ').trim();
+        return cleanAnswer('O ' + first + ', e ' + second);
       }
       if (bits.length >= 2) {
         return ensureSentence(bits[0] + ', e ' + bits.slice(1).join(', e '));
       }
+    }
+
+    if (parts.relation === 'consequence') {
+      const consequence = cleanAnswer(parts.detail || '');
+      if (consequence) return consequence;
     }
 
     if (parts.relation === 'date') {
@@ -458,7 +473,7 @@
       return ensureSentence(body);
     }
 
-    if (['detail','change','cause','consequence','general'].includes(parts.relation) && detail.length >= 14) {
+    if (['detail','cause','general'].includes(parts.relation) && detail.length >= 14) {
       return detail;
     }
 
