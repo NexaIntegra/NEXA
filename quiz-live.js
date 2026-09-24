@@ -290,7 +290,12 @@
 
     if (marker && clean.length > normalize(marker).length + 5) {
       const idx = normalize(clean).indexOf(normalize(marker));
-      return { subject: clean.slice(0, idx).replace(/[,:;-]\s*$/, '').trim(), detail: clean.slice(idx).trim(), relation: 'consequence' };
+      const subject = clean
+        .slice(0, idx)
+        .replace(/[,:;-]\s*$/, '')
+        .replace(/\s+(?:e|que|porque|pois)\s*$/i, '')
+        .trim();
+      return { subject, detail: clean.slice(idx).trim(), relation: 'consequence' };
     }
 
     if (year) {
@@ -585,32 +590,53 @@
 
     const ranked = rankFactsByGuide(facts, guideTopics);
     const targeted = ranked.filter(item => item.score > 0).map(item => item.fact);
-    const targetCount = Math.min(targeted.length, Math.max(3, Math.ceil(count * 0.7)));
+    const nonTargeted = facts.filter(fact => !targeted.includes(fact));
+    const targetQuota = Math.min(targeted.length, Math.max(1, Math.ceil(count * 0.7)));
+
     const selectedFacts = unique([
-      ...shuffle(targeted).slice(0, targetCount),
-      ...shuffle(facts.filter(fact => !targeted.includes(fact))).slice(0, count - targetCount)
+      ...shuffle(targeted).slice(0, targetQuota),
+      ...shuffle(nonTargeted).slice(0, count - targetQuota)
     ]);
 
-    // Se o roteiro for muito abrangente, permite usar o próprio ranking para preencher a cota.
     if (selectedFacts.length < count) {
-      selectedFacts.push(...shuffle(ranked.filter(item => !selectedFacts.includes(item.fact)).map(item => item.fact)).slice(0, count - selectedFacts.length));
+      const remaining = ranked
+        .map(item => item.fact)
+        .filter(fact => !selectedFacts.includes(fact));
+      selectedFacts.push(...shuffle(remaining).slice(0, count - selectedFacts.length));
     }
+
+    // A lista de fallback garante que uma questão inválida não reduza o quiz inteiro.
+    const candidateFacts = unique([
+      ...selectedFacts,
+      ...ranked.map(item => item.fact),
+      ...facts
+    ]);
 
     const questions = [];
     const usedQuestions = new Set();
+    const usedFacts = new Set();
 
-    for (let i = 0; i < selectedFacts.length && questions.length < count; i++) {
-      const fact = selectedFacts[i];
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const q = makeDetailedQuestion(fact, facts, i * 29 + attempt + Math.floor(Math.random() * 2000));
+    for (let i = 0; i < candidateFacts.length && questions.length < count; i++) {
+      const fact = candidateFacts[i];
+      const factKey = normalize(fact);
+      if (usedFacts.has(factKey)) continue;
+
+      for (let attempt = 0; attempt < 18; attempt++) {
+        const q = makeDetailedQuestion(
+          fact,
+          facts,
+          i * 31 + attempt + Math.floor(Math.random() * 3000)
+        );
         if (!q) continue;
-        const key = normalize(q.question);
-        if (usedQuestions.has(key)) continue;
+
+        const questionKey = normalize(q.question);
+        if (usedQuestions.has(questionKey)) continue;
 
         const guideMatch = scoreFactAgainstGuide(fact, guideTopics);
-        q.guideTopic = guideMatch.topic || '';
+        q.guideTopic = guideMatch.score > 0 ? guideMatch.topic : '';
         questions.push(q);
-        usedQuestions.add(key);
+        usedQuestions.add(questionKey);
+        usedFacts.add(factKey);
         break;
       }
     }
