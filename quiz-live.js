@@ -79,6 +79,16 @@
     ).replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
   };
 
+  const isQuestionLike = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    return /^(?:por\s+que|por\s+quê|o\s+que|qual(?:\s+foi|\s+era|\s+é)?|quais|como|quando|onde|quem)\b/i.test(clean);
+  };
+
+  const isMalformedQuestionFragment = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    return /^(?:por\s+que|por\s+quê|o\s+que|qual|quais|como|quando|onde|quem)\s+(?:a|o|os|as|um|uma|uma das|um dos)\s*:/i.test(clean);
+  };
+
   const splitFacts = text => {
     const raw = htmlToText(text);
     const pieces = [];
@@ -90,7 +100,7 @@
         .replace(/\bD\.\s+/g, 'D§ ')
         .trim();
 
-      if (!cleanLine || isStudyMeta(cleanLine)) return;
+      if (!cleanLine || isStudyMeta(cleanLine) || isMalformedQuestionFragment(cleanLine)) return;
 
       cleanLine.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/).forEach(part => {
         const fact = part
@@ -102,14 +112,33 @@
           fact.length >= 24 &&
           fact.length <= 500 &&
           !isStudyMeta(fact) &&
-          !isFragment(fact)
+          !isFragment(fact) &&
+          !isMalformedQuestionFragment(fact)
         ) {
           pieces.push(fact);
         }
       });
     });
 
-    return [...new Map(pieces.map(item => [normalize(item), item])).values()];
+    const merged = [];
+    for (let i = 0; i < pieces.length; i++) {
+      const current = pieces[i];
+      const next = pieces[i + 1];
+      if (
+        /\?\s*$/.test(current) &&
+        isQuestionLike(current) &&
+        next &&
+        !isQuestionLike(next) &&
+        current.length + next.length + 1 <= 500
+      ) {
+        merged.push(current + ' ' + next);
+        i++;
+      } else {
+        merged.push(current);
+      }
+    }
+
+    return [...new Map(merged.map(item => [normalize(item), item])).values()];
   };
 
   const keywords = text => {
@@ -240,6 +269,22 @@
     const dateAtStart = clean.match(/^\s*(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?\d{1,2}\s+(?:de\s+)?[A-Za-zÀ-ÿ]+\s+(?:de\s+)?(1[5-9]\d{2}|20\d{2})\b/i);
     const dayMonthYearAtStart = clean.match(/^\s*(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
     const monthYearAtStart = clean.match(/^\s*(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
+    const questionMark = clean.indexOf('?');
+    if (questionMark >= 8) {
+      const prompt = clean.slice(0, questionMark + 1).trim();
+      const remainder = clean.slice(questionMark + 1)
+        .replace(/^\s*[:—–-]+\s*/, '')
+        .replace(/^\s*[→⇒]+\s*/, '')
+        .trim();
+
+      if (isQuestionLike(prompt)) {
+        if (remainder.length >= 10) {
+          return { subject: prompt, prompt, detail: remainder, relation: 'prompt' };
+        }
+        return { subject: prompt, prompt, detail: '', relation: 'questionOnly' };
+      }
+    }
+
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
     const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
@@ -390,6 +435,11 @@
     const original = cleanAnswer(ensureSentence(fact));
     const detail = cleanAnswer(ensureSentence(parts.detail || ''));
     const subject = cleanLabel(parts.subject || '');
+
+    if (parts.relation === 'prompt') {
+      return cleanAnswer(parts.detail || original);
+    }
+    if (parts.relation === 'questionOnly') return '';
 
     if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 2) {
       return cleanAnswer('A sequência apresentada foi: ' + parts.sequence.join(' → '));
@@ -606,6 +656,9 @@
     const otherDetail = cleanAnswer(otherParts.detail || naturalizeAnswer(otherFact, otherParts));
 
     if (!targetSubject || !otherDetail) return '';
+    if (parts.relation === 'prompt' || parts.relation === 'questionOnly') {
+      return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
+    }
 
     if (parts.relation === 'sequence' && otherParts.relation === 'sequence' && otherParts.sequence?.length >= 3) {
       return cleanAnswer('A sequência apresentada foi: ' + [parts.sequence[0], ...otherParts.sequence.slice(1)].join(' → '));
@@ -633,7 +686,7 @@
     }
 
     if (['detail','explanation','general','change','relation','consequence'].includes(parts.relation)) {
-      return combineLabelAndDetail(targetSubject, otherDetail);
+      return cleanAnswer(otherDetail);
     }
 
     if (parts.relation === 'date' && otherParts.relation === 'date') {
@@ -654,6 +707,7 @@
   const makeDetailedQuestion = (fact, facts, seed, preferredFacts = facts) => {
     const parts = factParts(fact);
     const answer = cleanAnswer(naturalizeAnswer(fact, parts));
+    if (!answer || parts.relation === 'questionOnly') return null;
     const templates = questionTemplates[parts.relation] || questionTemplates.general;
 
     let question = '';
