@@ -210,6 +210,7 @@
   const extractRelation = fact => {
     const obj = typeof fact === 'string' ? { text: fact, kind: 'statement', answerText: fact } : fact;
     const text = obj.text;
+    const years = text.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
 
     if (obj.kind === 'prompt') return { type: 'prompt', prompt: obj.prompt, detail: obj.answerText, subject: obj.prompt };
 
