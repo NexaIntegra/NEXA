@@ -473,6 +473,14 @@
       return ensureSentence(body);
     }
 
+    if (parts.relation === 'detail' && /^órgão\b/i.test(detail)) {
+      return cleanAnswer(cleanLabel(parts.subject) + ' era ' + detail);
+    }
+
+    if (parts.relation === 'detail' && /^20% de todo ouro pertencia ao Rei/i.test(detail)) {
+      return cleanAnswer('No Quinto, ' + detail.charAt(0).toLowerCase() + detail.slice(1));
+    }
+
     if (['detail','cause','general'].includes(parts.relation) && detail.length >= 14) {
       return detail;
     }
@@ -492,6 +500,7 @@
 
     if (!clean) return '';
     clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    if (!/[.!?]$/.test(clean)) clean += '.';
     return clean;
   };
 
@@ -545,9 +554,9 @@
       p => 'Que efeito aparece associado a "' + p.subject + '"?'
     ],
     explanation: [
-      p => 'Como "' + p.subject + '" funcionava ou era caracterizado?',
-      p => 'Que explicação do conteúdo ajuda a entender "' + p.subject + '"?',
-      p => 'Qual característica explica o papel de "' + p.subject + '"?'
+      p => 'Como o conteúdo caracteriza "' + p.subject + '"?',
+      p => 'Que explicação ajuda a entender "' + p.subject + '"?',
+      p => 'Qual característica do conteúdo ajuda a explicar "' + p.subject + '"?'
     ],
     date: [
       p => 'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
@@ -555,8 +564,8 @@
       p => 'Que fato do tema é localizado em ' + p.year + '?'
     ],
     general: [
-      p => 'O que caracteriza "' + p.subject + '" no contexto estudado?',
-      p => 'Que informação explica melhor "' + p.subject + '"?',
+      p => 'Qual característica ou função define "' + p.subject + '" no conteúdo?',
+      p => 'Que informação específica ajuda a compreender "' + p.subject + '"?',
       p => 'Qual aspecto de "' + p.subject + '" é destacado no conteúdo?'
     ]
   };
