@@ -157,10 +157,15 @@
       if (isStudyMeta(topic)) continue;
       const topicNorm = normalize(topic).trim();
       const topicWords = [...new Set(meaningfulWords(topic))];
-      if (!topicWords.length) continue;
+      const topicYears = topic.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
+      const factYears = fact.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
+      if (!topicWords.length && !topicYears.length) continue;
 
       let score = 0;
       if (topicNorm.length >= 6 && factNorm.includes(topicNorm)) score += 12;
+
+      const matchingYears = topicYears.filter(year => factYears.includes(year));
+      if (matchingYears.length) score += matchingYears.length * 12;
 
       const shared = topicWords.filter(word => factWords.has(word)).length;
       score += shared * 3;
