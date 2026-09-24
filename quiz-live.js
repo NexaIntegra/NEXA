@@ -439,7 +439,7 @@
 
       if (bits.length >= 2 && /proibido|proibia/i.test(bits[1])) {
         const first = bits[0].replace(/^o\s+/i, '').trim();
-        return cleanAnswer('Nas ' + cleanLabel(subject) + ', ' + first.toLowerCase() + ', e o ouro em pó era proibido.');
+        return cleanAnswer('Nas ' + cleanLabel(subject) + ', o ' + first.toLowerCase() + ', e o ouro em pó era proibido.');
       }
 
       if (bits.length >= 2) {
@@ -542,8 +542,8 @@
     ],
     explanation: [
       p => 'Como o conteúdo caracteriza "' + p.subject + '"?',
-      p => 'Que explicação ajuda a entender "' + p.subject + '"?',
-      p => 'Qual característica do conteúdo ajuda a explicar "' + p.subject + '"?'
+      p => 'Como "' + p.subject + '" funcionava ou era tratado no contexto estudado?',
+      p => 'Qual característica ajuda a entender o papel de "' + p.subject + '"?'
     ],
     date: [
       p => 'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
