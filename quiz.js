@@ -197,7 +197,7 @@
   async function openQuiz() {
     const context = window.NEXA_ACTIVE_SUMMARY;
     if (!context?.summary) return;
-    $('#quizDialog').showModal();
+    if (!$('#quizDialog').open) $('#quizDialog').showModal();
     render('loading');
     score = 0;
     index = 0;
@@ -217,7 +217,7 @@
 
   document.addEventListener('click', event => {
     if (event.target.closest('#aiQuizButton')) return openQuiz();
-    if (event.target.closest('#quizCloseBottom')) return $('#quizDialog').close();
+    if (event.target.closest('#quizCloseBottom') || event.target.closest('.quiz-close-dialog')) return $('#quizDialog').close();
     if (event.target.closest('#quizRetry')) return openQuiz();
     const option = event.target.closest('.quiz-option');
     if (!option || !quiz || locked) return;
