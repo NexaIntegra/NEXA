@@ -19,6 +19,35 @@
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>');
 
+  const studyMetaPatterns = [
+    /\bboa prova\b/i,
+    /\bpara decorar\b/i,
+    /\bo mais importante (?:é|e) entender\b/i,
+    /\blembre-se\b/i,
+    /\blembre\b/i,
+    /\bnão esqueça\b/i,
+    /\bn[ãa]o deixe de memorizar\b/i,
+    /\bmemorize\b/i,
+    /\bdecore\b/i,
+    /\bdica(?:s)?\s+de\s+prova\b/i,
+    /\bdica(?:s)?\s+para\s+a\s+prova\b/i,
+    /\bmacete(?:s)?\b/i,
+    /\bvale lembrar\b/i,
+    /\batenção\b/i,
+    /\bresumindo\b/i,
+    /\bem resumo\b/i,
+    /\bcai\s+na\s+prova\b/i,
+    /\bo que cai\s+na\s+prova\b/i
+  ];
+
+  const isStudyMeta = text => studyMetaPatterns.some(pattern => pattern.test(String(text || '')));
+
+  const ensureSentence = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return '';
+    return /[.!?]$/.test(clean) ? clean : clean + '.';
+  };
+
   const htmlToText = html => {
     const source = String(html || '');
     if (typeof document !== 'undefined' && document.createElement) {
@@ -55,7 +84,7 @@
           .replace(/D§\s+/g, 'D. ')
           .replace(/\s{2,}/g, ' ')
           .trim();
-        if (fact.length >= 24 && fact.length <= 500) pieces.push(fact);
+        if (fact.length >= 24 && fact.length <= 500 && !isStudyMeta(fact)) pieces.push(fact);
       });
     });
     return [...new Map(pieces.map(item => [normalize(item), item])).values()];
@@ -130,6 +159,7 @@
       .trim();
 
     const yearAtStart = clean.match(/^\s*(1[5-9]\d{2}|20\d{2})\b/);
+    const dateAtStart = clean.match(/^\s*(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?\d{1,2}\s+(?:de\s+)?[A-Za-zÀ-ÿ]+\s+(?:de\s+)?(1[5-9]\d{2}|20\d{2})\b/i);
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
     const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
@@ -139,34 +169,51 @@
     const markerList = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido'];
     const marker = markerList.find(item => normalize(clean).includes(normalize(item)));
 
-    if (yearAtStart) {
-      return { subject: yearAtStart[1], detail: clean, relation: 'date', year: yearAtStart[1] };
+    if (dateAtStart) {
+      return { subject: clean.replace(dateAtStart[0], '').replace(/^\s*[-—:]+\s*/, '').trim(), detail: clean, relation: 'date', year: dateAtStart[1] };
     }
+
+    if (yearAtStart) {
+      const rest = clean.replace(yearAtStart[0], '').replace(/^\s*[:—–-]\s*/, '').trim();
+      return { subject: rest.split(/\s*[→⇒]\s*/)[0].trim(), detail: rest || clean, relation: 'date', year: yearAtStart[1] };
+    }
+
+    if (arrowParts.length >= 3) {
+      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), sequence: arrowParts, relation: 'sequence' };
+    }
+
     if (change) {
       return { subject: change[1].trim(), detail: change[3].trim(), relation: 'change', verb: change[2] };
     }
+
     if (cause) {
       return { subject: cause[1].trim(), detail: cause[3].trim(), relation: 'cause', connector: cause[2] };
     }
+
     if (colon > 4 && colon < 140) {
       const subject = clean.slice(0, colon).trim();
       const rest = clean.slice(colon + 1).trim();
       const restArrow = rest.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      if (restArrow.length >= 3) return { subject, detail: restArrow.join(' → '), sequence: [subject, ...restArrow], relation: 'sequence' };
       if (restArrow.length >= 2) return { subject, detail: restArrow.join(' → '), relation: 'relation' };
       const restDash = rest.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
       if (restDash.length >= 2) return { subject, detail: restDash.join(' — '), relation: 'explanation' };
       return { subject, detail: rest, relation: 'detail' };
     }
+
     if (arrowParts.length >= 2) {
       return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relation' };
     }
+
     if (dashParts.length >= 2) {
       return { subject: dashParts[0], detail: dashParts.slice(1).join(' — '), relation: 'explanation' };
     }
+
     if (marker && clean.length > normalize(marker).length + 5) {
       const idx = normalize(clean).indexOf(normalize(marker));
       return { subject: clean.slice(0, idx).replace(/[,:;-]\s*$/, '').trim(), detail: clean.slice(idx).trim(), relation: 'consequence' };
     }
+
     if (year) {
       return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date', year: year[0] };
     }
@@ -187,8 +234,8 @@
       'cresceu','crescem','começou','começam','envolveu','envolve','envolvem','facilitou','facilita','facilitam',
       'provoca','provocou','provocam','defende','defendia','defendem','pertence','pertencia','pertencem',
       'transporta','transportou','transportam','libera','liberou','liberam','produz','produziu','produzem',
-      'ocorreu','resultou','resulta','levou','leva','permite','permitiu','permitiram','prejudica','prejudicou',
-      'eram','era','ficou','fica','ficam','voltou','volta','voltam','decidiu','decide','decidem'
+      'resultou','resulta','levou','leva','permite','permitiu','permitiram','prejudica','prejudicou',
+      'ficou','fica','ficam','voltou','volta','voltam','decidiu','decide','decidem'
     ]);
 
     let verbIndex = -1;
@@ -251,59 +298,73 @@
   };
 
   const answerUnit = (fact, parts) => {
-    let answer = String(parts.detail || '').trim();
-
-    if (parts.relation === 'date') {
-      answer = answer
-        .replace(/^\s*(?:1[5-9]\d{2}|20\d{2})\s*[:—–-]?\s*/,'')
-        .trim();
+    switch (parts.relation) {
+      case 'sequence':
+        return ensureSentence('A sequência apresentada no resumo é: ' + parts.sequence.join(' → '));
+      case 'relation':
+        return ensureSentence(parts.subject + ' está relacionado a ' + parts.detail);
+      case 'detail':
+        return ensureSentence(parts.subject + ': ' + parts.detail);
+      case 'change':
+        return ensureSentence(parts.subject + ' ' + parts.verb + ' ' + parts.detail);
+      case 'cause':
+        return ensureSentence(parts.subject + ' ' + parts.connector + ' ' + parts.detail);
+      case 'consequence':
+        return ensureSentence(parts.subject + ' ' + parts.detail);
+      case 'explanation':
+        return ensureSentence(parts.subject + ': ' + parts.detail);
+      case 'date':
+        return ensureSentence('Em ' + parts.year + ', ' + (parts.detail || fact));
+      default:
+        return ensureSentence(fact);
     }
-
-    if (!answer || answer.length < 12) answer = String(fact || '').trim();
-
-    return answer.replace(/\s{2,}/g, ' ').trim();
   };
 
   const questionTemplates = {
+    sequence: [
+      p => 'Qual sequência de acontecimentos é apresentada no resumo a partir de "' + p.subject + '"?',
+      p => 'Ao tratar de "' + p.subject + '", qual sequência é mostrada no conteúdo?',
+      p => 'Qual cadeia de acontecimentos o resumo apresenta começando por "' + p.subject + '"?'
+    ],
     relation: [
-      p => 'Qual resultado o resumo associa a "' + p.subject + '" dentro do tema estudado?',
-      p => 'O que o conteúdo indica como consequência ou desdobramento de "' + p.subject + '"?',
-      p => 'Que resultado relacionado a "' + p.subject + '" é apresentado no resumo?'
+      p => 'Qual resultado ou consequência o resumo associa a "' + p.subject + '"?',
+      p => 'O que o conteúdo apresenta como desdobramento de "' + p.subject + '"?',
+      p => 'Que mudança ou resultado aparece relacionado a "' + p.subject + '" no resumo?'
     ],
     detail: [
-      p => 'No conteúdo estudado, qual função ou característica é atribuída a "' + p.subject + '"?',
-      p => 'Que informação específica o resumo apresenta sobre "' + p.subject + '" dentro desse tema?',
-      p => 'Como o resumo caracteriza "' + p.subject + '" no contexto do conteúdo estudado?'
+      p => 'No tema estudado, qual função ou característica é atribuída a "' + p.subject + '"?',
+      p => 'O que o resumo destaca sobre "' + p.subject + '"?',
+      p => 'Qual descrição explica corretamente "' + p.subject + '" no contexto estudado?'
     ],
     change: [
-      p => 'Que mudança o resumo apresenta em "' + p.subject + '" e como ela é descrita?',
+      p => 'Que mudança o resumo apresenta em "' + p.subject + '"?',
       p => 'Como o conteúdo descreve a transformação ocorrida em "' + p.subject + '"?',
-      p => 'Ao tratar de "' + p.subject + '", que transformação é apresentada no resumo?'
+      p => 'O que mudou em "' + p.subject + '" segundo o resumo?'
     ],
     cause: [
-      p => 'Qual explicação o resumo apresenta para o fato de "' + p.subject + '"?',
-      p => 'Segundo o conteúdo, que motivo explica o que ocorreu com "' + p.subject + '"?',
-      p => 'Que explicação aparece no resumo para o que aconteceu com "' + p.subject + '"?'
+      p => 'Qual explicação o resumo apresenta para "' + p.subject + '"?',
+      p => 'Segundo o conteúdo, o que explica o que ocorreu com "' + p.subject + '"?',
+      p => 'Que motivo é apresentado no resumo para o que aconteceu com "' + p.subject + '"?'
     ],
     consequence: [
-      p => 'Qual efeito ou resultado o resumo associa a "' + p.subject + '"?',
-      p => 'Que consequência do conteúdo está relacionada a "' + p.subject + '"?',
-      p => 'Segundo o resumo, qual resultado decorre de "' + p.subject + '"?'
+      p => 'Qual consequência o resumo atribui a "' + p.subject + '"?',
+      p => 'Que resultado é associado a "' + p.subject + '" no conteúdo?',
+      p => 'O que ocorreu como consequência de "' + p.subject + '" segundo o resumo?'
     ],
     explanation: [
-      p => 'Como o resumo explica ou caracteriza "' + p.subject + '" neste contexto?',
-      p => 'Que informação o conteúdo apresenta para explicar "' + p.subject + '"?',
-      p => 'Qual característica ou explicação é apresentada para "' + p.subject + '" no resumo?'
+      p => 'Como o resumo caracteriza "' + p.subject + '"?',
+      p => 'Que informação explica corretamente "' + p.subject + '" no conteúdo estudado?',
+      p => 'Qual característica ou explicação é apresentada para "' + p.subject + '"?'
     ],
     date: [
-      p => 'Qual acontecimento o resumo associa a ' + p.year + ' dentro do tema estudado?',
-      p => 'O que o conteúdo registra em ' + p.year + ' e como esse fato aparece no resumo?',
-      p => 'Que acontecimento importante do tema está relacionado a ' + p.year + '?'
+      p => 'Em que ano aconteceu o fato descrito no resumo como "' + p.subject + '"?',
+      p => 'Qual é a data associada ao acontecimento apresentado como "' + p.subject + '"?',
+      p => 'Em que ano o resumo situa "' + p.subject + '"?'
     ],
     general: [
-      p => 'No contexto estudado, que informação o resumo apresenta sobre "' + p.subject + '"?',
-      p => 'Como o conteúdo descreve "' + p.subject + '" dentro do tema estudado?',
-      p => 'Que informação específica o resumo destaca sobre "' + p.subject + '"?'
+      p => 'Como o resumo descreve "' + p.subject + '" dentro do tema estudado?',
+      p => 'Que informação específica o conteúdo apresenta sobre "' + p.subject + '"?',
+      p => 'No contexto estudado, o que o resumo afirma sobre "' + p.subject + '"?'
     ]
   };
 
@@ -319,10 +380,10 @@
 
     const answerWords = [...new Set(meaningfulWords(answer))];
     const questionWords = new Set(meaningfulWords(question));
-    if (answerWords.length < 2) return false;
+    if (answerWords.length < 3) return false;
 
     const overlap = answerWords.filter(word => questionWords.has(word)).length / answerWords.length;
-    return overlap >= 0.5;
+    return overlap >= 0.72;
   };
 
   const answerSimilarity = (a, b) => {
@@ -358,7 +419,7 @@
       .map(item => ({ ...item, answer: answerUnit(item.fact, item.parts) }))
       .filter(item => item.answer && normalize(item.answer) !== normalize(answer))
       .filter(item => !questionLeaksAnswer(question, item.answer))
-      .filter(item => answerSimilarity(answer, item.answer) < 0.78);
+      .filter(item => answerSimilarity(answer, item.answer) < 0.82);
 
     const distinct = [];
     for (const item of shuffle(candidates)) {
@@ -368,7 +429,6 @@
     }
 
     const alternatives = shuffle(unique([answer, ...distinct.map(item => item.answer)]));
-
     if (alternatives.length !== 4) return null;
 
     return {
@@ -390,14 +450,15 @@
     const usedQuestions = new Set();
 
     const relationRank = {
+      sequence: 8,
       relation: 7,
       change: 6,
       consequence: 6,
       cause: 6,
       detail: 5,
       explanation: 5,
-      date: 4,
-      general: 2
+      date: 5,
+      general: 3
     };
 
     const orderedFacts = shuffle(facts).sort((a,b) => {
@@ -411,10 +472,10 @@
 
       let q = null;
       for (let attempt = 0; attempt < 12; attempt++) {
-        const candidate = makeDetailedQuestion(
+          const candidate = makeDetailedQuestion(
           fact,
           facts,
-          i * 13 + attempt + Math.floor(Math.random() * 1000)
+          i * 17 + attempt + Math.floor(Math.random() * 1000)
         );
         if (!candidate) continue;
         const questionKey = normalize(candidate.question);
