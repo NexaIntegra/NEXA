@@ -77,16 +77,82 @@
 
   const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
 
-  const makeQuestion = (fact, facts, keyList) => {
-    const topic = keyList.find(key => normalize(fact).includes(normalize(key))) || fact.split(/\s+/).slice(0, 3).join(' ');
-    const distractors = shuffle(facts.filter(item => normalize(item) !== normalize(fact))).slice(0, 3);
-    const alternatives = shuffle([fact].concat(distractors));
-    if (alternatives.length !== 4 || !alternatives.some(item => normalize(item) === normalize(fact))) return null;
+  const cleanQuestionText = value => String(value || '')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/^[•▪●◦\-–—]+\s*/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  const factParts = fact => {
+    const clean = cleanQuestionText(fact);
+    const colon = clean.indexOf(':');
+    const arrowParts = clean.split(/\s+[→⇒]\s+/).map(part => part.trim()).filter(Boolean);
+    const dash = clean.split(/\s+[—–-]\s+/).map(part => part.trim()).filter(Boolean);
+
+    if (arrowParts.length >= 2) {
+      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relação' };
+    }
+    if (colon > 4 && colon < 120) {
+      return { subject: clean.slice(0, colon).trim(), detail: clean.slice(colon + 1).trim(), relation: 'detalhamento' };
+    }
+    if (dash.length >= 2) {
+      return { subject: dash[0], detail: dash.slice(1).join(' — '), relation: 'explicação' };
+    }
+
+    const markers = [
+      'provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram',
+      'prejudicou','prejudicaram','defendia','defendiam','proibia','proibido','marcou','marcou o início',
+      'ocorreu em','aconteceu em','passou de','mudou de'
+    ];
+    const marker = markers.find(item => normalize(clean).includes(normalize(item)));
+    if (marker) {
+      const idx = normalize(clean).indexOf(normalize(marker));
+      return {
+        subject: clean.slice(0, Math.max(0, idx)).trim(),
+        detail: clean.slice(Math.max(0, idx)).trim(),
+        relation: 'consequência'
+      };
+    }
+
     return {
-      question: 'Sobre "' + topic + '", qual alternativa está de acordo com o resumo?',
+      subject: clean.split(/\s+/).slice(0, Math.min(8, clean.split(/\s+/).length)).join(' '),
+      detail: clean,
+      relation: 'característica'
+    };
+  };
+
+  const makeDetailedQuestion = (fact, facts, keyList) => {
+    const parts = factParts(fact);
+    const related = keyList.find(key => normalize(fact).includes(normalize(key)));
+    const topic = parts.subject || related || 'este conteúdo';
+
+    let question;
+    if (parts.relation === 'relação') {
+      question = 'De acordo com o resumo, qual alternativa explica corretamente a relação apresentada entre "' + parts.subject + '" e "' + parts.detail + '"?';
+    } else if (parts.relation === 'detalhamento') {
+      question = 'Considerando o resumo, qual é o principal detalhamento apresentado sobre "' + parts.subject + '" e como ele é descrito no material?';
+    } else if (parts.relation === 'consequência') {
+      question = 'Segundo o resumo, qual acontecimento, característica ou consequência está associado a "' + (parts.subject || topic) + '"?';
+    } else {
+      question = 'No contexto apresentado pelo resumo, qual alternativa descreve corretamente "' + topic + '" e a informação relacionada a esse ponto?';
+    }
+
+    const sameTopic = facts.filter(other => {
+      if (normalize(other) === normalize(fact)) return false;
+      return topic.split(/\s+/).some(word => word.length >= 5 && normalize(other).includes(normalize(word)));
+    });
+
+    const fallback = facts.filter(other => normalize(other) !== normalize(fact));
+    const distractors = shuffle(unique([...(sameTopic.length ? sameTopic : fallback)])).slice(0, 3);
+    const options = shuffle(unique([fact, ...distractors])).slice(0, 4);
+
+    if (options.length !== 4 || !options.some(item => normalize(item) === normalize(fact))) return null;
+
+    return {
+      question,
       answer: fact,
-      alternatives,
-      explanation: 'O resumo apresenta esta informação: "' + fact + '"'
+      alternatives: options,
+      explanation: 'O resumo apresenta essa informação desta forma: "' + fact + '"'
     };
   };
 
@@ -101,7 +167,7 @@
     for (const fact of shuffle(facts)) {
       if (questions.length >= count) break;
       if (used.has(normalize(fact))) continue;
-      const q = makeQuestion(fact, facts, keyList);
+      const q = makeDetailedQuestion(fact, facts, keyList);
       if (!q) continue;
       questions.push(q);
       used.add(normalize(fact));
