@@ -227,6 +227,31 @@
     }).join('\n');
   };
 
+  const extractNatural = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return null;
+
+    const protectedText = clean.replace(/\bD\.\s+/g, 'D§ ');
+    const tokens = protectedText.split(' ');
+    const introMatch = clean.match(/^(Durante|Antes|Depois|Nesse|No|Na|Ao|Em|Com)\b[^,]{0,45},\s*(.+)$/i);
+    const core = introMatch ? introMatch[2].trim() : clean;
+    const prefix = introMatch ? introMatch[1] : '';
+
+    const pattern = core.match(/^(.+?)\s+(ocorre|ocorrem|acontece|acontecem|começou|comecou|começam|comecam|absorve|absorveu|absorvem|entra|entrou|entram|participa|participou|participam|contribui|contribuiu|contribuem|cresce|cresceu|aumenta|aumentou|aumentam|crescem|facilitou|facilita|facilitam|é absorvida|foi absorvida|é transportada|foi transportada|é liberado|foi liberado)\s+(.+)$/i);
+    if (!pattern) return null;
+
+    let subject = pattern[1].trim();
+    const verb = pattern[2].trim();
+    const detail = pattern[3].trim().replace(/D§\s+/g, 'D. ');
+
+    if (introMatch && subject) {
+      subject = subject.replace(/^(o|a|os|as)\s+/i, match => match);
+    }
+
+    if (subject.length < 3 || subject.split(/\s+/).length > 8) return null;
+    return { type: 'natural', subject, verb, detail, prefix: prefix || '' };
+  };
+
   const extractRelation = fact => {
     const obj = typeof fact === 'string' ? { text: fact, kind: 'statement', answerText: fact } : fact;
     const text = obj.text;
@@ -247,6 +272,9 @@
 
     const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram|favoreceu|favoreceram|aumentou|aumentaram|reduziu|reduziram|ampliou|ampliaram|gerou|geraram|facilitou|facilitaram|contribuiu|contribuíram)\s+(.+)$/i);
     if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
+
+    const natural = extractNatural(text);
+    if (natural) return natural;
 
     const colon = text.indexOf(':');
     if (colon > 3 && colon < 120) {
@@ -321,6 +349,44 @@
           'O que aconteceu em ' + p.year + '?',
           'Qual acontecimento está associado a ' + p.year + '?'
         ];
+      case 'natural': {
+        const subject = p.subject;
+        const v = normalize(p.verb);
+        if (/\bocorre\b|\bacontece\b/.test(v) && /\b(?:em|no|na|nos|nas|dentro|pelas|pelo|pela)\b/i.test(p.detail)) {
+          return [
+            'Onde ocorre "' + subject + '" segundo o conteúdo?',
+            'Em que contexto "' + subject + '" acontece de acordo com o resumo?'
+          ];
+        }
+        if (/absorve|participa|contribui/.test(v)) {
+          return [
+            'Qual função ou ação de "' + subject + '" é destacada no conteúdo?',
+            'Que papel "' + subject + '" exerce no processo estudado?'
+          ];
+        }
+        if (/entra|absorvida|transportada|liberado/.test(v)) {
+          return [
+            'Como "' + subject + '" aparece ou atua no processo descrito?',
+            'O que o conteúdo explica sobre o papel de "' + subject + '" nesse processo?'
+          ];
+        }
+        if (/começou/.test(v)) {
+          return [
+            'Como o conteúdo apresenta o início de "' + subject + '"?',
+            'Onde e de que forma "' + subject + '" começou segundo o resumo?'
+          ];
+        }
+        if (/cresce|cresceu|aumenta|aumentou|facilitou|facilita/.test(v)) {
+          return [
+            'O que aconteceu com "' + subject + '" segundo o conteúdo?',
+            'Que mudança é apresentada em relação a "' + subject + '"?'
+          ];
+        }
+        return [
+          'Que informação específica o conteúdo apresenta sobre "' + subject + '"?',
+          'Como "' + subject + '" é apresentado no contexto estudado?'
+        ];
+      }
       case 'definition':
         return [
           'O que significa "' + p.subject + '" no contexto estudado?',
