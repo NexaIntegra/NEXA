@@ -49,7 +49,7 @@ jobs:
 
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz inválido ou duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz inválido ou duplicado');
-          if (!/quiz-live\.js\?v=20260924-fixed-2/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-fixed-3/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/study_guide/.test(supabaseSource)) throw new Error('Supabase: estudo não integrado');
           if (!/id="examStudyGuide"/.test(adminHtmlSource)) throw new Error('Admin: campo de roteiro ausente');
           if (!/studyGuide: \$\('#examStudyGuide'\)\.value\.trim\(\)/.test(adminJsSource)) throw new Error('Admin: roteiro não é salvo');
