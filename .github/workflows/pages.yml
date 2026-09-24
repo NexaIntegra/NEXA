@@ -28,6 +28,23 @@ jobs:
         run: |
           node --check script.js
           node --check quiz-live.js
+          node --check quiz-bootstrap.js
+          node - <<'NODE'
+          const fs = require('fs');
+          const bootstrap = fs.readFileSync('quiz-bootstrap.js', 'utf8');
+          const indexHtml = fs.readFileSync('index.html', 'utf8');
+          const quizLive = fs.readFileSync('quiz-live.js', 'utf8');
+
+          if (!/window\.nexaQuizOpen = openQuiz;/.test(quizLive)) throw new Error('Quiz integration: função pública de abertura ausente');
+          if (/const bindQuizButton = \(\)/.test(quizLive)) throw new Error('Quiz integration: binding antigo duplicado');
+          if (!/document\.addEventListener\('click', handleClick, true\)/.test(bootstrap)) throw new Error('Quiz integration: captura de clique ausente');
+          if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Quiz integration: botão sem type=button');
+          if (!/quiz-live\.js\?v=20260924-fix-button-5/.test(indexHtml)) throw new Error('Quiz integration: cache-bust incorreto');
+          if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration: bootstrap não carregado');
+          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration: botão duplicado');
+          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration: dialog duplicado');
+          console.log('Quiz integration static checks OK');
+          NODE
           node - <<'NODE'
           global.window = { document: null };
           require('./quiz-live.js');
