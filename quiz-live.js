@@ -683,15 +683,11 @@
     }
 
     if (parts.relation === 'consequence' && otherParts.relation === 'consequence') {
-      const otherSentence = cleanAnswer(naturalizeAnswer(otherFact, otherParts));
-      const otherDetailPart = otherSentence.split(/\s+provoc(?:ou|aram|am|a)|\s+caus(?:ou|aram|am|a)|\s+lev(?:ou|aram|a)|\s+result(?:ou|aram|a)|\s+permit(?:iu|iram|e)/i).pop().trim();
-      if (otherDetailPart && otherDetailPart !== otherSentence) {
-        return cleanAnswer(targetSubject + ' ' + otherDetailPart);
-      }
+      return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
     }
 
     if (['detail','explanation','general','change','relation','consequence'].includes(parts.relation)) {
-      return cleanAnswer(otherDetail);
+      return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
     }
 
     if (parts.relation === 'date' && otherParts.relation === 'date') {
