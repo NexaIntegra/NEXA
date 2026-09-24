@@ -293,32 +293,24 @@
   const shortAnswerForFact = fact => {
     const p = extractRelation(fact);
 
-    const target = cleanAnswer(
-      p.detail || p.answer || p.subject || p.fullAnswer || ''
-    );
-
     switch (p.type) {
       case 'prompt':
-        return target;
+        return cleanAnswer(p.detail || p.answer || '');
 
       case 'sequence':
-        return cleanAnswer((p.parts || []).slice(1).join(' → ') || target);
+        return cleanAnswer((p.parts || []).slice(1).join(' → ') || p.detail || '');
 
       case 'relation':
-        return cleanAnswer(target);
+        return cleanAnswer(p.detail || p.answer || '');
 
       case 'change':
-        return cleanAnswer(
-          /^do\b|^da\b|^dos\b|^das\b|^de\b/i.test(target)
-            ? target.replace(/^/,'Passou ')
-            : target
-        );
+        return cleanAnswer('Mudou ' + (p.detail || p.answer || '').replace(/^mudou\s+/i, ''));
 
       case 'cause':
-        return cleanAnswer(target);
+        return cleanAnswer(p.detail || p.answer || '');
 
       case 'consequence':
-        return cleanAnswer(target);
+        return cleanAnswer((p.verb ? p.verb + ' ' : '') + (p.detail || p.answer || ''));
 
       case 'location':
         return cleanAnswer((p.preposition ? p.preposition + ' ' : '') + (p.answer || p.detail || ''));
@@ -333,15 +325,18 @@
         const value = cleanAnswer(p.detail || p.answer || '');
         if (!value) return '';
         if (/^órgão\b/i.test(value)) return 'Era um ' + value.toLowerCase();
-        if (/^20%\b/i.test(value)) return value + ' era destinado à Coroa.';
         return value;
       }
 
-      case 'date':
-        return target;
+      case 'date': {
+        const value = cleanAnswer(p.detail || p.answer || p.subject || '');
+        return value
+          .replace(/^\s*(?:\d{1,2}\s+)?(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+/i, '')
+          .replace(/^\s*(?:1[5-9]\d{2}|20\d{2})\s*[:—–-]\s*/i, '');
+      }
 
       default:
-        return target;
+        return cleanAnswer(p.fullAnswer || p.detail || p.answer || '');
     }
   };
 
