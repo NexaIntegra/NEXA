@@ -45,7 +45,7 @@ jobs:
           if (/const bindQuizButton = \(\)/.test(quizLive)) throw new Error('Quiz integration: binding antigo duplicado');
           if (!/document\.addEventListener\('click', handleClick, true\)/.test(bootstrap)) throw new Error('Quiz integration: captura de clique ausente');
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Quiz integration: botão sem type=button');
-          if (!/quiz-live\.js\?v=20260924-fix-button-5/.test(indexHtml)) throw new Error('Quiz integration: cache-bust incorreto');
+          if (!/quiz-live\.js\?v=20260924-quality-2/.test(indexHtml)) throw new Error('Quiz integration: cache-bust incorreto');
           if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration: bootstrap não carregado');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration: botão duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration: dialog duplicado');
@@ -125,7 +125,7 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
           const indexHtml = require('fs').readFileSync('index.html', 'utf8');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration test: botão ausente ou duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration test: dialog ausente ou duplicado');
-          if (!/quiz-live\.js\?v=20260924-fix-button-5/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
+          if (!/quiz-live\.js\?v=20260924-quality-2/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
           if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration test: bootstrap ausente');
           if (!/onclick="event\.preventDefault\(\);if\(typeof window\.nexaQuizOpen/.test(indexHtml)) throw new Error('Quiz integration test: fallback inline ausente');
 
@@ -148,6 +148,36 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
               }
             }
           }
+
+          const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{4,}/g) || [])
+            .map(w => w.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+            .filter(w => !new Set(['sobre','qual','quais','dentro','tema','estudado','resumo','conteudo','informacao','alternativa','segundo','essa','esse','como','quando']).has(w));
+
+          const leakExamples = [
+            'Povoamento do interior → fronteiras ampliadas.',
+            'Abertura dos Portos (1808): fim do monopólio → comércio livre.',
+            'Intendência das Minas (1702): órgão de controle e fiscalização.',
+            '1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.',
+            'Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.'
+          ];
+          for (let run = 0; run < 500; run++) {
+            const generated = window.nexaQuizEngine.generateQuizFromText(sample, 8);
+            for (const item of generated) {
+              if (window.nexaQuizEngine.questionLeaksAnswer(item.question, item.answer)) {
+                throw new Error('Quiz quality: resposta aparece no enunciado');
+              }
+            }
+          }
+          const leakProbe = leakExamples.map(fact => {
+            const parts = window.nexaQuizEngine.factParts(fact);
+            const answer = window.nexaQuizEngine.answerUnit(fact, parts);
+            const questions = [
+              'Qual informação está associada a "' + parts.subject + '"?',
+              'O que o resumo apresenta sobre "' + parts.subject + '"?'
+            ];
+            return questions.some(question => window.nexaQuizEngine.questionLeaksAnswer(question, answer));
+          });
+          if (leakProbe.some(Boolean)) throw new Error('Quiz quality: teste de vazamento de resposta falhou');
 
           const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{4,}/g) || [])
             .map(w => w.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
