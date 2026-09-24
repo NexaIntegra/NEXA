@@ -138,6 +138,18 @@ jobs:
             if (fallbackQuiz.some(q => q.guideTopic)) throw new Error('Hybrid fallback: roteiro fantasma');
           }
 
+          const promptProbe = `Por que a Família Real veio para o Brasil?: Família Real + Abertura dos Portos.
+A Família Real portuguesa deixou Portugal por causa das invasões napoleônicas.
+A Abertura dos Portos permitiu o comércio com outras nações.
+Os Tratados de 1810 favoreceram produtos ingleses.`;
+          const promptFacts = engine.splitFacts(promptProbe);
+          if (!promptFacts.some(f => /^Por que a Família Real veio para o Brasil\?/i.test(f))) throw new Error('Prompt: pergunta original não foi preservada');
+          const promptQuiz = engine.generateHybridQuiz(promptProbe, 'Família Real\nAbertura dos Portos\nTratados de 1810', 4);
+          const promptQuestion = promptQuiz.find(q => /Família Real veio para o Brasil\?/i.test(q.question));
+          if (!promptQuestion) throw new Error('Prompt: pergunta do resumo não virou pergunta do quiz');
+          if (/Qual afirmação descreve melhor "Por que a/i.test(promptQuestion.question)) throw new Error('Prompt: fallback genérico detectado');
+          if (promptQuestion.alternatives.some(a => /^Por que a:/i.test(a))) throw new Error('Prompt: fragmento "Por que a:" entrou nas alternativas');
+
           const decorationProbe = `Boa prova! Para decorar: antes, o comércio colonial era controlado por Portugal; de
           Ideia para decorar: antes, o comércio colonial era controlado por Portugal; depois vieram mudanças.
           Quinto: 20% de todo ouro pertencia ao Rei.
@@ -190,7 +202,7 @@ jobs:
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-hybrid-7/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-hybrid-8/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
           if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
           if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
