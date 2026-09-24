@@ -191,10 +191,12 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
           }
 
           for (const q of quiz) {
-            const answerWords = qualityWords(q.answer);
+            const sourceParts = window.nexaQuizEngine.factParts(q.sourceFact || q.answer);
+            const sourceWords = qualityWords(sourceParts.subject || q.sourceFact || q.answer);
             const questionNorm = q.question.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const hasAnchor = answerWords.some(word => questionNorm.includes(word)) || /\b(?:1[5-9]\d{2}|20\d{2})\b/.test(q.question);
-            if (!hasAnchor) throw new Error('Quiz quality: pergunta sem conexão clara com a resposta');
+            const hasSourceAnchor = sourceWords.some(word => questionNorm.includes(word)) || /\b(?:1[5-9]\d{2}|20\d{2})\b/.test(q.question);
+            if (!hasSourceAnchor) throw new Error('Quiz quality: pergunta sem conexão clara com o ponto estudado');
+            if (window.nexaQuizEngine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Quiz quality: resposta aparece no enunciado');
           }
 
           const vm = require('vm');
