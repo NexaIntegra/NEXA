@@ -130,7 +130,7 @@
     }
 
     const result = shuffle(questions).filter(q => q.alternatives.length === 4 && q.alternatives.includes(q.answer));
-    if (result.length < Math.min(5, count)) throw new Error('Não encontrei informações suficientes para montar um quiz confiável.');
+    if (result.length < Math.min(4, count)) throw new Error('Não encontrei informações suficientes para montar um quiz confiável.');
     return result.slice(0, count).map((q, index) => ({ id: index + 1, ...q }));
   };
 
