@@ -228,6 +228,27 @@
     const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram)\s+(.+)$/i);
     if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
 
+    const location = text.match(/^(.+?)\s+(ocorre|ocorrem|acontece|acontecem|se passa|aconteceu|ocorreu)\s+(em|no|na|nos|nas|dentro|pelas|pelos|pela|pelo)\s+(.+)$/i);
+    if (location) return {
+      type: 'location',
+      subject: location[1].trim(),
+      verb: location[2].trim(),
+      preposition: location[3].trim(),
+      answer: location[4].trim(),
+      fullAnswer: text,
+      years
+    };
+
+    const activity = text.match(/^(.+?)\s+(absorve|absorveu|entra|entrou|participa|participou|produz|produziu|libera|liberou|transporta|transportou|começou|comecou|começa|comeca|cresce|cresceu|aumenta|aumentou|facilita|facilitou|contribui|contribuiu|defende|defendia|representa|representava|significa|significava|é|são|era|eram|foi|foram|é absorvida|é transportada|é liberado|foi absorvida|foi transportada|foi liberado)\s+(.+)$/i);
+    if (activity) return {
+      type: 'activity',
+      subject: activity[1].trim(),
+      verb: activity[2].trim(),
+      answer: activity[3].trim(),
+      fullAnswer: text,
+      years
+    };
+
     const colon = text.indexOf(':');
     if (colon > 3 && colon < 120) {
       const subject = text.slice(0, colon).trim();
