@@ -106,7 +106,19 @@
 
         if (isQuestionLike(prompt)) {
           if (rest.length >= 10 && !isStudyMeta(rest) && !isOutline(rest)) {
-            facts.push({ text: line, kind: 'prompt', prompt, answerText: rest });
+            const protectedRest = rest.replace(/\bD\.\s+/g, 'D§ ');
+            const answerParts = protectedRest
+              .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
+              .map(part => part.replace(/D§\s+/g, 'D. ').trim())
+              .filter(Boolean);
+            const answerText = answerParts.shift() || rest;
+
+            if (answerText.length >= 10 && !isStudyMeta(answerText) && !isOutline(answerText) && !isFragment(answerText)) {
+              facts.push({ text: prompt + ' ' + answerText, kind: 'prompt', prompt, answerText });
+              for (const extra of answerParts) addStatement(extra);
+            } else {
+              pendingQuestion = prompt;
+            }
           } else {
             pendingQuestion = prompt;
           }
