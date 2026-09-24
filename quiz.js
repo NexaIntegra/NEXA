@@ -51,7 +51,7 @@
   const cleanText = html => String(html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<\/?(p|div|h[1-6]|li|br|hr|section|article|blockquote|tr)>/gi, '\n')
+    .replace(/<\/?(p|div|h[1-6]|li|br|hr|section|article|blockquote|tr)(?:\s[^>]*)?>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
