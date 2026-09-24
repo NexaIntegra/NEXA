@@ -588,6 +588,20 @@
     return intersection / union;
   };
 
+  const candidateLeaksCorrectAnswer = (candidate, answer) => {
+    const candidateNorm = normalize(candidate);
+    const answerNorm = normalize(answer);
+    if (!answerNorm || answerNorm.length < 8) return false;
+    if (candidateNorm.includes(answerNorm)) return true;
+
+    const answerWords = [...new Set(meaningfulWords(answer))];
+    const candidateWords = new Set(meaningfulWords(candidate));
+    if (answerWords.length < 3) return false;
+
+    const overlap = answerWords.filter(word => candidateWords.has(word)).length / answerWords.length;
+    return overlap >= 0.88;
+  };
+
   const makeNearMiss = (fact, parts, otherFact) => {
     const otherParts = factParts(otherFact);
     if (normalize(otherFact) === normalize(fact)) return '';
@@ -662,6 +676,7 @@
 
     if (!question || !answer || isFragment(answer)) return null;
 
+    const targetSubject = cleanLabel(parts.subject || '');
     const pool = unique([...preferredFacts, ...facts])
       .filter(other => normalize(other) !== normalize(fact))
       .map(other => {
@@ -669,13 +684,14 @@
         const otherAnswer = cleanAnswer(naturalizeAnswer(other, otherParts));
         const nearMiss = makeNearMiss(fact, parts, other);
         const candidate = cleanAnswer(nearMiss || otherAnswer);
-        return { other, candidate, similarity: scoreDistractor(answer, question, candidate) };
+        const subjectBoost = targetSubject.length >= 5 && normalize(candidate).includes(normalize(targetSubject)) ? 4 : 0;
+        return { other, candidate, similarity: scoreDistractor(answer, question, candidate) + subjectBoost };
       })
       .filter(item => item.candidate)
       .filter(item => !isStudyMeta(item.candidate))
       .filter(item => !isFragment(item.candidate))
       .filter(item => normalize(item.candidate) !== normalize(answer))
-      .filter(item => !questionLeaksAnswer(question, item.candidate))
+      .filter(item => !candidateLeaksCorrectAnswer(item.candidate, answer))
       .sort((a,b) => b.similarity - a.similarity);
 
     const distinct = [];
@@ -713,7 +729,7 @@
     const facts = splitFacts(text);
     if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
 
-    const count = Math.min(8, Math.max(5, Number(desiredCount) || 6));
+    const count = Math.min(facts.length, 8, Math.max(5, Number(desiredCount) || 6));
     const questions = [];
     const used = new Set();
     const usedQuestions = new Set();
@@ -768,7 +784,7 @@
     const facts = splitFacts(summaryText);
     if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
 
-    const count = Math.min(8, Math.max(5, Number(desiredCount) || 6));
+    const count = Math.min(facts.length, 8, Math.max(5, Number(desiredCount) || 6));
     const guideTopics = splitStudyGuide(guideText);
 
     if (!guideTopics.length) {
@@ -850,6 +866,7 @@
     assemblePdfText,
     generateQuizFromText,
     generateHybridQuiz,
+    candidateLeaksCorrectAnswer,
     splitStudyGuide,
     scoreFactAgainstGuide,
     rankFactsByGuide,
