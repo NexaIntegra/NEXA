@@ -326,6 +326,8 @@
   if (typeof document === 'undefined') return;
   const $ = selector => document.querySelector(selector);
 
+  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+
   const extractPdfText = async pdfUrl => {
     if (!pdfUrl || !window.pdfjsLib) return '';
     const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
