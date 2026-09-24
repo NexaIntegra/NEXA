@@ -129,6 +129,57 @@
       .map(x => display.get(x[0]));
   };
 
+  const splitStudyGuide = guide => {
+    const raw = htmlToText(guide);
+    const lines = raw
+      .split(/\n+/)
+      .map(line => line.replace(/^[\s•▪●◦\-–—]+/, '').trim())
+      .filter(Boolean);
+
+    const topics = [];
+    for (const line of lines) {
+      if (isStudyMeta(line)) continue;
+      const chunks = line.split(/\s*;\s*/).map(x => x.trim()).filter(Boolean);
+      for (const chunk of chunks) {
+        if (chunk.length >= 3 && chunk.length <= 180 && !isFragment(chunk)) topics.push(chunk);
+      }
+    }
+
+    return unique(topics);
+  };
+
+  const scoreFactAgainstGuide = (fact, guideTopics) => {
+    if (!guideTopics.length) return { score: 0, topic: '' };
+    const factNorm = normalize(fact);
+    const factWords = new Set(meaningfulWords(fact));
+    let best = { score: 0, topic: '' };
+
+    for (const topic of guideTopics) {
+      if (isStudyMeta(topic)) continue;
+      const topicNorm = normalize(topic).trim();
+      const topicWords = [...new Set(meaningfulWords(topic))];
+      if (!topicWords.length) continue;
+
+      let score = 0;
+      if (topicNorm.length >= 6 && factNorm.includes(topicNorm)) score += 12;
+
+      const shared = topicWords.filter(word => factWords.has(word)).length;
+      score += shared * 3;
+
+      const coverage = shared / topicWords.length;
+      if (coverage >= 0.5) score += 5;
+      if (coverage >= 0.8) score += 5;
+
+      if (score > best.score) best = { score, topic };
+    }
+
+    return best;
+  };
+
+  const rankFactsByGuide = (facts, guideTopics) => facts
+    .map(fact => ({ fact, ...scoreFactAgainstGuide(fact, guideTopics) }))
+    .sort((a,b) => b.score - a.score || a.fact.length - b.fact.length);
+
   const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
 
   const shuffle = list => {
@@ -492,8 +543,8 @@
       if (used.has(key)) continue;
 
       let q = null;
-      for (let attempt = 0; attempt < 12; attempt++) {
-          const candidate = makeDetailedQuestion(
+      for (let attempt = 0; attempt < 16; attempt++) {
+        const candidate = makeDetailedQuestion(
           fact,
           facts,
           i * 17 + attempt + Math.floor(Math.random() * 1000)
@@ -516,6 +567,56 @@
     return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
   };
 
+  const generateHybridQuiz = (summaryText, guideText, desiredCount) => {
+    const facts = splitFacts(summaryText);
+    if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
+
+    const count = Math.min(8, Math.max(5, Number(desiredCount) || 6));
+    const guideTopics = splitStudyGuide(guideText);
+
+    if (!guideTopics.length) {
+      return generateQuizFromText(summaryText, count);
+    }
+
+    const ranked = rankFactsByGuide(facts, guideTopics);
+    const targeted = ranked.filter(item => item.score > 0).map(item => item.fact);
+    const targetCount = Math.min(targeted.length, Math.max(3, Math.ceil(count * 0.7)));
+    const selectedFacts = unique([
+      ...shuffle(targeted).slice(0, targetCount),
+      ...shuffle(facts.filter(fact => !targeted.includes(fact))).slice(0, count - targetCount)
+    ]);
+
+    // Se o roteiro for muito abrangente, permite usar o próprio ranking para preencher a cota.
+    if (selectedFacts.length < count) {
+      selectedFacts.push(...shuffle(ranked.filter(item => !selectedFacts.includes(item.fact)).map(item => item.fact)).slice(0, count - selectedFacts.length));
+    }
+
+    const questions = [];
+    const usedQuestions = new Set();
+
+    for (let i = 0; i < selectedFacts.length && questions.length < count; i++) {
+      const fact = selectedFacts[i];
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const q = makeDetailedQuestion(fact, facts, i * 29 + attempt + Math.floor(Math.random() * 2000));
+        if (!q) continue;
+        const key = normalize(q.question);
+        if (usedQuestions.has(key)) continue;
+
+        const guideMatch = scoreFactAgainstGuide(fact, guideTopics);
+        q.guideTopic = guideMatch.topic || '';
+        questions.push(q);
+        usedQuestions.add(key);
+        break;
+      }
+    }
+
+    if (questions.length < Math.min(5, count)) {
+      return generateQuizFromText(summaryText, count);
+    }
+
+    return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
+  };
+
   window.nexaQuizEngine = {
     htmlToText,
     splitFacts,
@@ -525,6 +626,10 @@
     questionLeaksAnswer,
     assemblePdfText,
     generateQuizFromText,
+    generateHybridQuiz,
+    splitStudyGuide,
+    scoreFactAgainstGuide,
+    rankFactsByGuide,
     isStudyMeta,
     isFragment,
     answerSimilarity
@@ -664,9 +769,12 @@
 
       if (source.length < 140) throw new Error('Este resumo não tem texto suficiente para criar um quiz.');
 
-      quiz = generateQuizFromText(source, source.split(/\s+/).length > 700 ? 8 : 6);
+      const studyGuide = (summary.exam && summary.exam.studyGuide) || (context.exam && context.exam.studyGuide) || '';
+      quiz = generateHybridQuiz(source, studyGuide, source.split(/\s+/).length > 700 ? 8 : 6);
       $('#quizTitle').textContent = summary.title || 'Quiz por IA';
-      $('#quizSubtitle').textContent = 'Personalizado com base no conteúdo deste resumo';
+      $('#quizSubtitle').textContent = studyGuide.trim()
+        ? 'Personalizado com base no roteiro de estudos e no resumo'
+        : 'Personalizado com base no conteúdo deste resumo';
       renderQuestion();
     } catch (error) {
       quiz = [];
