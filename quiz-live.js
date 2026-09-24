@@ -87,14 +87,24 @@
 
       if (pendingQuestion) {
         if (!isQuestionLike(line) && !isOutline(line) && line.length >= 10) {
-          facts.push({
-            text: pendingQuestion + ' ' + line,
-            kind: 'prompt',
-            prompt: pendingQuestion,
-            answerText: line
-          });
-          pendingQuestion = null;
-          continue;
+          const protectedLine = line.replace(/\bD\.\s+/g, 'D§ ');
+          const parts = protectedLine
+            .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
+            .map(part => part.replace(/D§\s+/g, 'D. ').trim())
+            .filter(Boolean);
+
+          const answerText = parts.shift() || line;
+          if (answerText.length >= 10 && !isStudyMeta(answerText) && !isOutline(answerText) && !isFragment(answerText)) {
+            facts.push({
+              text: pendingQuestion + ' ' + answerText,
+              kind: 'prompt',
+              prompt: pendingQuestion,
+              answerText
+            });
+            for (const extra of parts) addStatement(extra);
+            pendingQuestion = null;
+            continue;
+          }
         }
         pendingQuestion = null;
       }
