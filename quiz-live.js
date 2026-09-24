@@ -115,17 +115,33 @@
         const rest = line.slice(qMark + 1).replace(/^\s*[:—–-]+\s*/, '').trim();
 
         if (isQuestionLike(prompt)) {
-          if (rest.length >= 10 && !isStudyMeta(rest) && !isOutline(rest)) {
+          if (rest.length >= 10 && !isStudyMeta(rest)) {
             const protectedRest = rest.replace(/\bD\.\s+/g, 'D§ ');
             const answerParts = protectedRest
               .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
               .map(part => part.replace(/D§\s+/g, 'D. ').trim())
               .filter(Boolean);
-            const answerText = answerParts.shift() || rest;
 
-            if (answerText.length >= 10 && !isStudyMeta(answerText) && !isOutline(answerText) && !isFragment(answerText)) {
-              facts.push({ text: prompt + ' ' + answerText, kind: 'prompt', prompt, answerText });
-              for (const extra of answerParts) addStatement(extra);
+            const usable = answerParts.filter(part =>
+              part.length >= 10 &&
+              !isStudyMeta(part) &&
+              !isOutline(part) &&
+              !isFragment(part)
+            );
+
+            const answerText = usable[0] || '';
+            if (answerText) {
+              facts.push({
+                text: prompt + ' ' + answerText,
+                kind: 'prompt',
+                prompt,
+                answerText
+              });
+
+              const answerUsed = answerParts.indexOf(answerText);
+              answerParts.forEach((extra, index) => {
+                if (index !== answerUsed) addStatement(extra);
+              });
             } else {
               pendingQuestion = prompt;
             }
@@ -147,7 +163,7 @@
       }
     }
 
-    if (pendingQuestion) addStatement(pendingQuestion);
+    // Pergunta sem resposta não é um fato: descartamos para evitar questões artificiais.
 
     return [...new Map(facts.map(f => [normalize(f.text), f])).values()];
   };
