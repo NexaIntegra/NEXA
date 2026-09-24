@@ -32,6 +32,12 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
           const bootstrap = fs.readFileSync('quiz-bootstrap.js', 'utf8');
+          const quizLiveSource = fs.readFileSync('quiz-live.js', 'utf8');
+
+          if (!/const \$ = selector => document\.querySelector\(selector\);/.test(quizLiveSource)) throw new Error('Quiz integration: helper $ ausente');
+          if (!/const esc = value =>/.test(quizLiveSource)) throw new Error('Quiz integration: helper esc ausente');
+          if (!/const getFreshSummary = async context =>/.test(quizLiveSource)) throw new Error('Quiz integration: helper getFreshSummary ausente');
+          if (!/window\.nexaQuizOpen = openQuiz;/.test(quizLiveSource)) throw new Error('Quiz integration: função pública de abertura ausente');
           const indexHtml = fs.readFileSync('index.html', 'utf8');
           const quizLive = fs.readFileSync('quiz-live.js', 'utf8');
 
@@ -46,7 +52,14 @@ jobs:
           console.log('Quiz integration static checks OK');
           NODE
           node - <<'NODE'
-          global.window = { document: null };
+          const domStub = {
+            addEventListener() {},
+            querySelector() { return null; },
+            createElement() { return { innerHTML: '', innerText: '', textContent: '' }; }
+          };
+          global.document = domStub;
+          global.Element = class {};
+          global.window = { document: domStub };
           require('./quiz-live.js');
 
           const normal = 'A Revolução Francesa foi um processo político e social ocorrido na França no final do século XVIII. A burguesia defendia maior participação política e liberdade econômica. A queda da Bastilha ocorreu em 14 de julho de 1789. A Declaração dos Direitos do Homem e do Cidadão defendia liberdade e igualdade jurídica. A Revolução provocou mudanças profundas na política europeia. O movimento também influenciou outras sociedades.';
