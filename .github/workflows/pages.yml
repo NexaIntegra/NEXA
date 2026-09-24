@@ -141,7 +141,10 @@ jobs:
           const decorationProbe = `Boa prova! Para decorar: antes, o comércio colonial era controlado por Portugal; de
           Ideia para decorar: antes, o comércio colonial era controlado por Portugal; depois vieram mudanças.
           Quinto: 20% de todo ouro pertencia ao Rei.
-          Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
+          Abertura dos Portos (1808): fim do monopólio → comércio livre.
+          Intendência das Minas (1702): órgão de controle e fiscalização.
+          Povoamento do interior → fronteiras ampliadas.
+          Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.`;
           const probeFacts = engine.splitFacts(decorationProbe);
           if (probeFacts.some(f => /boa prova|para decorar|ideia para decorar|o mais importante/i.test(f))) {
             throw new Error('Quiz quality: conteúdo de decoração foi aceito como fato');
