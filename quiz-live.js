@@ -293,31 +293,57 @@
   const shortAnswerForFact = fact => {
     const p = extractRelation(fact);
 
+    const target = cleanAnswer(
+      p.detail || p.answer || p.subject || p.fullAnswer || ''
+    );
+
     switch (p.type) {
       case 'prompt':
-        return cleanAnswer(p.detail || p.answer || '');
+        return target;
+
       case 'sequence':
-        return cleanAnswer((p.parts || []).slice(1).join(' → ') || p.detail || '');
+        return cleanAnswer((p.parts || []).slice(1).join(' → ') || target);
+
       case 'relation':
-        return cleanAnswer(p.detail || p.answer || '');
+        return cleanAnswer(target);
+
       case 'change':
-        return cleanAnswer(p.detail || p.answer || '');
+        return cleanAnswer(
+          /^do\b|^da\b|^dos\b|^das\b|^de\b/i.test(target)
+            ? target.replace(/^/,'Passou ')
+            : target
+        );
+
       case 'cause':
-        return cleanAnswer(p.detail || p.answer || '');
+        return cleanAnswer(target);
+
       case 'consequence':
-        return cleanAnswer(p.detail || p.answer || '');
+        return cleanAnswer(target);
+
       case 'location':
         return cleanAnswer((p.preposition ? p.preposition + ' ' : '') + (p.answer || p.detail || ''));
+
       case 'activity':
         return cleanAnswer((p.verb ? p.verb + ' ' : '') + (p.answer || p.detail || ''));
+
       case 'definition':
         return cleanAnswer((p.verb ? p.verb + ' ' : '') + (p.detail || p.answer || ''));
-      case 'detail':
-        return cleanAnswer(p.detail || p.answer || '');
+
+      case 'detail': {
+        const subject = cleanLabel(p.subject || '');
+        const value = cleanAnswer(p.detail || p.answer || '');
+        if (!value) return '';
+        if (/^órgão\b/i.test(value)) return 'Era um ' + value.toLowerCase();
+        if (/^20%\b/i.test(value)) return value + ' era destinado à Coroa.';
+        if (/proibido/i.test(value) && subject) return value;
+        return value;
+      }
+
       case 'date':
-        return cleanAnswer(p.detail || p.answer || p.subject || '');
+        return target;
+
       default:
-        return cleanAnswer(p.fullAnswer || p.detail || p.answer || '');
+        return target;
     }
   };
 
@@ -328,51 +354,67 @@
     switch (p.type) {
       case 'sequence':
         return [
-          'Qual sequência de acontecimentos é apresentada a partir de "' + p.subject + '"?',
+          'Qual sequência de acontecimentos o conteúdo apresenta a partir de "' + p.subject + '"?',
           'Como os acontecimentos ligados a "' + p.subject + '" se encadeiam?'
         ];
       case 'relation':
         return [
-          'O que aconteceu a partir de "' + p.subject + '"?',
-          'Qual resultado é apresentado após "' + p.subject + '"?'
+          'Qual resultado o conteúdo associa a "' + p.subject + '"?',
+          'O que acontece a partir de "' + p.subject + '" segundo o conteúdo?'
         ];
       case 'change':
         return [
-          'Como "' + p.subject + '" mudou segundo o conteúdo?',
-          'Qual transformação ocorreu em "' + p.subject + '"?'
+          'Que transformação ocorreu em "' + p.subject + '"?',
+          'Como "' + p.subject + '" mudou no processo estudado?'
         ];
       case 'cause':
         return [
-          'Por que "' + p.subject + '" aconteceu?',
-          'Que causa explica "' + p.subject + '"?'
+          'Qual motivo explica "' + p.subject + '" segundo o conteúdo?',
+          'O que explica o acontecimento envolvendo "' + p.subject + '"?'
         ];
       case 'consequence':
         return [
-          'O que "' + p.subject + '" provocou?',
-          'Qual foi o efeito de "' + p.subject + '"?'
+          'Qual foi o principal efeito de "' + p.subject + '"?',
+          'O que "' + p.subject + '" provocou no contexto estudado?'
         ];
-      case 'date':
+      case 'location':
         return [
-          'O que aconteceu em ' + p.year + '?',
-          'Qual acontecimento está associado a ' + p.year + '?'
+          'Onde "' + p.subject + '" ocorre segundo o conteúdo?',
+          'Em qual local ou estrutura "' + p.subject + '" acontece?'
+        ];
+      case 'activity':
+        return [
+          'Qual ação ou função o conteúdo atribui a "' + p.subject + '"?',
+          'Que papel "' + p.subject + '" desempenha no processo estudado?'
         ];
       case 'definition':
         return [
-          'O que significa "' + p.subject + '" no contexto estudado?',
-          'Qual definição explica "' + p.subject + '"?'
+          'Como "' + p.subject + '" é definido no conteúdo?',
+          'Que característica explica o significado de "' + p.subject + '"?'
         ];
       case 'detail':
-        if (/%/.test(p.detail)) return ['Qual valor ou porcentagem está associado a "' + p.subject + '"?'];
-        if (/órgão|controle|fiscalização|função/i.test(p.detail)) return ['Qual era a função de "' + p.subject + '" no período estudado?'];
-        if (/proibido|proibia/i.test(p.detail)) return ['O que era proibido em relação a "' + p.subject + '"?'];
+        if (/%/.test(p.detail || '')) return [
+          'Qual valor está associado a "' + p.subject + '" e o que ele representa?'
+        ];
+        if (/órgão|controle|fiscalização|função/i.test(p.detail || '')) return [
+          'Qual era a função de "' + p.subject + '" no período estudado?'
+        ];
+        if (/proibido|proibia/i.test(p.detail || '')) return [
+          'O que era proibido em relação a "' + p.subject + '"?'
+        ];
         return [
-          'Qual característica define "' + p.subject + '" no contexto estudado?',
-          'Que informação específica ajuda a compreender "' + p.subject + '"?'
+          'Que informação específica caracteriza "' + p.subject + '"?',
+          'Que detalhe do conteúdo ajuda a explicar "' + p.subject + '"?'
+        ];
+      case 'date':
+        return [
+          'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
+          'Qual acontecimento importante está associado a ' + p.year + '?'
         ];
       default:
         return [
           'Que informação específica o conteúdo apresenta sobre "' + p.subject + '"?',
-          'Qual característica de "' + p.subject + '" é destacada no conteúdo?'
+          'Como "' + p.subject + '" é apresentado no contexto estudado?'
         ];
     }
   };
@@ -566,6 +608,7 @@
     extractRelation,
     factParts: extractRelation,
     answerUnit: answerForFact,
+    shortAnswerForFact,
     questionLeaksAnswer,
     candidateLeaksCorrectAnswer,
     answerSimilarity,
