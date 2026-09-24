@@ -266,6 +266,23 @@
     return cleanAnswer(obj.answerText || obj.text);
   };
 
+  const shortAnswerForFact = fact => {
+    const p = extractRelation(fact);
+    switch (p.type) {
+      case 'prompt': return addPeriod(p.answer);
+      case 'sequence': return addPeriod(p.parts.slice(1).join(' → '));
+      case 'relation': return addPeriod(p.answer);
+      case 'change': return addPeriod(p.answer);
+      case 'consequence': return addPeriod(p.answer);
+      case 'location': return addPeriod(p.answer);
+      case 'activity': return addPeriod(p.answer);
+      case 'definition': return addPeriod(p.answer);
+      case 'detail': return addPeriod(p.answer);
+      case 'date': return addPeriod(p.detail || p.subject || p.fullAnswer);
+      default: return addPeriod(p.fullAnswer);
+    }
+  };
+
   const questionForFact = fact => {
     const p = extractRelation(fact);
     if (p.type === 'prompt') return [p.prompt];
