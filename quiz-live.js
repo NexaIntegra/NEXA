@@ -171,9 +171,23 @@
       return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date', year: year[0] };
     }
 
+    const punctuationParts = clean.split(/\s*[,;]\s*/).map(x => x.trim()).filter(Boolean);
+    if (punctuationParts.length >= 2) {
+      return { subject: punctuationParts[0], detail: punctuationParts.slice(1).join(', '), relation: 'general' };
+    }
+
     const words = clean.split(/\s+/);
+    if (words.length >= 9) {
+      const splitAt = Math.min(5, Math.max(3, Math.floor(words.length * 0.45)));
+      return {
+        subject: words.slice(0, splitAt).join(' '),
+        detail: words.slice(splitAt).join(' '),
+        relation: 'general'
+      };
+    }
+
     return {
-      subject: words.slice(0, Math.min(9, words.length)).join(' '),
+      subject: '',
       detail: clean,
       relation: 'general'
     };
@@ -205,72 +219,132 @@
     return clean.slice(0, 177).replace(/\s+\S*$/, '') + '…';
   };
 
+  const answerUnit = (fact, parts) => {
+    let answer = String(parts.detail || '').trim();
+
+    if (parts.relation === 'date') {
+      answer = answer
+        .replace(/^\s*(?:1[5-9]\d{2}|20\d{2})\s*[:—–-]?\s*/,'')
+        .trim();
+    }
+
+    if (!answer || answer.length < 12) answer = String(fact || '').trim();
+
+    return answer.replace(/\s{2,}/g, ' ').trim();
+  };
+
   const questionTemplates = {
     relation: [
-      p => 'No resumo, como "' + p.subject + '" se relaciona com "' + p.detail + '"?',
-      p => 'Qual alternativa descreve corretamente a ligação entre "' + p.subject + '" e "' + p.detail + '" apresentada no conteúdo?',
-      p => 'Ao estudar "' + p.subject + '", qual associação com "' + p.detail + '" aparece no resumo?'
+      p => 'Que resultado ou desdobramento o resumo associa a "' + p.subject + '"?',
+      p => 'Segundo o conteúdo estudado, o que acontece em relação a "' + p.subject + '"?',
+      p => 'Qual consequência ou resultado é apresentado para "' + p.subject + '" no resumo?'
     ],
     detail: [
-      p => 'Dentro do tema estudado, qual é a função ou característica de "' + p.subject + '"?',
-      p => 'O que o resumo destaca sobre "' + p.subject + '" e sua importância no conteúdo?',
-      p => 'Qual descrição completa corretamente "' + p.subject + '" conforme explicado no resumo?'
+      p => 'No contexto estudado, qual função ou característica é destacada para "' + p.subject + '"?',
+      p => 'O que o resumo destaca sobre "' + p.subject + '"?',
+      p => 'Qual informação específica o conteúdo apresenta sobre "' + p.subject + '"?'
     ],
     change: [
-      p => 'Qual transformação o resumo descreve em "' + p.subject + '" e o que mudou nesse processo?',
-      p => 'Como "' + p.subject + '" se transformou, segundo o conteúdo estudado?',
-      p => 'Ao comparar o antes e o depois de "' + p.subject + '", qual mudança é apresentada no resumo?'
+      p => 'O que mudou em "' + p.subject + '" segundo o resumo?',
+      p => 'Qual transformação é descrita para "' + p.subject + '" no conteúdo estudado?',
+      p => 'Como o resumo descreve a mudança em "' + p.subject + '"?'
     ],
     cause: [
-      p => 'Por qual motivo o resumo relaciona "' + p.subject + '" a essa explicação?',
-      p => 'Qual causa apresentada no conteúdo explica o que ocorreu com "' + p.subject + '"?',
-      p => 'Considerando "' + p.subject + '", qual justificativa aparece no resumo para esse acontecimento?'
+      p => 'Qual motivo ou explicação o resumo apresenta para "' + p.subject + '"?',
+      p => 'Que explicação o conteúdo oferece para o que ocorreu com "' + p.subject + '"?',
+      p => 'Segundo o resumo, o que explica "' + p.subject + '"?'
     ],
     consequence: [
-      p => 'A partir de "' + p.subject + '", qual consequência é indicada no resumo?',
-      p => 'Que resultado o conteúdo associa a "' + p.subject + '"?',
-      p => 'Qual efeito ou mudança decorre de "' + p.subject + '" de acordo com o resumo?'
+      p => 'Qual efeito o resumo atribui a "' + p.subject + '"?',
+      p => 'Que resultado é associado a "' + p.subject + '" no conteúdo estudado?',
+      p => 'Qual consequência aparece relacionada a "' + p.subject + '" no resumo?'
     ],
     explanation: [
-      p => 'Considerando "' + p.subject + '", qual explicação completa o ponto apresentado no resumo?',
-      p => 'O que o resumo explica sobre "' + p.subject + '" e a característica que aparece em seguida?',
-      p => 'Qual alternativa reúne corretamente o que é "' + p.subject + '" e como o conteúdo o caracteriza?'
+      p => 'Que informação o resumo apresenta para explicar "' + p.subject + '"?',
+      p => 'Como o conteúdo caracteriza "' + p.subject + '"?',
+      p => 'Qual explicação ou característica é apresentada para "' + p.subject + '"?'
     ],
     date: [
-      p => 'Ao citar ' + p.year + ', qual acontecimento o resumo registra e em que contexto ele aparece?',
-      p => 'Qual fato está associado a ' + p.year + ' no conteúdo estudado?',
-      p => 'Por que ' + p.year + ' é uma data importante dentro do tema apresentado?'
+      p => 'Qual acontecimento está associado a ' + p.year + ' segundo o resumo?',
+      p => 'O que o conteúdo registra em ' + p.year + '?',
+      p => 'Que fato do tema estudado é relacionado a ' + p.year + '?'
     ],
     general: [
-      p => 'Que informação do resumo caracteriza "' + p.subject + '" e ajuda a situá-lo no tema estudado?',
-      p => 'Como o resumo caracteriza "' + p.subject + '" e qual detalhe do conteúdo está diretamente ligado a ele?',
-      p => 'Dentro do tema estudado, o que "' + p.subject + '" representa e qual informação do resumo explica essa relação?'
+      p => p.subject ? 'Qual informação do resumo caracteriza "' + p.subject + '"?' : 'Qual informação importante o resumo apresenta neste ponto do conteúdo?',
+      p => p.subject ? 'O que o conteúdo destaca sobre "' + p.subject + '"?' : 'Qual afirmação específica aparece neste trecho do resumo?',
+      p => p.subject ? 'Como o resumo descreve "' + p.subject + '"?' : 'O que o resumo afirma neste trecho?'
     ]
+  };
+
+  const meaningfulWords = value => (String(value || '').match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{3,}/g) || [])
+    .map(word => normalize(word))
+    .filter(word => !stopWords.has(word) && word.length >= 4);
+
+  const questionLeaksAnswer = (question, answer) => {
+    const qNorm = normalize(question);
+    const aNorm = normalize(answer);
+    if (!aNorm || aNorm.length < 6) return false;
+    if (qNorm.includes(aNorm)) return true;
+
+    const answerWords = [...new Set(meaningfulWords(answer))];
+    const questionWords = new Set(meaningfulWords(question));
+    if (answerWords.length < 2) return false;
+
+    const overlap = answerWords.filter(word => questionWords.has(word)).length / answerWords.length;
+    return overlap >= 0.5;
+  };
+
+  const answerSimilarity = (a, b) => {
+    const aw = new Set(meaningfulWords(a));
+    const bw = new Set(meaningfulWords(b));
+    if (!aw.size || !bw.size) return 0;
+    const intersection = [...aw].filter(word => bw.has(word)).length;
+    const union = new Set([...aw, ...bw]).size;
+    return intersection / union;
   };
 
   const makeDetailedQuestion = (fact, facts, seed) => {
     const parts = factParts(fact);
+    const answer = answerUnit(fact, parts);
     const templates = questionTemplates[parts.relation] || questionTemplates.general;
-    const templateIndex = Math.abs(Number(seed) || 0) % templates.length;
-    const question = templates[templateIndex](parts);
-    if (question.length < 70) return null;
+
+    let question = '';
+    for (let attempt = 0; attempt < templates.length; attempt++) {
+      const templateIndex = (Math.abs(Number(seed) || 0) + attempt) % templates.length;
+      const candidate = templates[templateIndex](parts);
+      if (candidate.length >= 55 && !questionLeaksAnswer(candidate, answer)) {
+        question = candidate;
+        break;
+      }
+    }
+
+    if (!question) return null;
 
     const related = relatedFacts(fact, facts);
     const fallback = facts.filter(other => normalize(other) !== normalize(fact));
-    const subjectNorm = normalize(parts.subject || '').trim();
-    const safeRelated = related.filter(other => !subjectNorm || subjectNorm.length < 5 || !normalize(other).includes(subjectNorm));
-    const safeFallback = fallback.filter(other => !subjectNorm || subjectNorm.length < 5 || !normalize(other).includes(subjectNorm));
-    let pool = unique([...safeRelated, ...safeFallback]);
-    if (pool.length < 3) pool = unique([...related, ...fallback]);
-    const distractors = shuffle(pool).slice(0, 3);
-    const alternatives = shuffle(unique([fact, ...distractors]));
+    const candidates = unique([...related, ...fallback])
+      .map(other => ({ fact: other, parts: factParts(other) }))
+      .map(item => ({ ...item, answer: answerUnit(item.fact, item.parts) }))
+      .filter(item => item.answer && normalize(item.answer) !== normalize(answer))
+      .filter(item => !questionLeaksAnswer(question, item.answer))
+      .filter(item => answerSimilarity(answer, item.answer) < 0.78);
 
-    if (alternatives.length !== 4 || !alternatives.some(item => normalize(item) === normalize(fact))) return null;
+    const distinct = [];
+    for (const item of shuffle(candidates)) {
+      if (distinct.some(existing => normalize(existing.answer) === normalize(item.answer))) continue;
+      distinct.push(item);
+      if (distinct.length === 3) break;
+    }
+
+    const alternatives = shuffle(unique([answer, ...distinct.map(item => item.answer)]));
+
+    if (alternatives.length !== 4) return null;
 
     return {
       question,
-      answer: fact,
+      answer,
       alternatives,
+      sourceFact: fact,
       explanation: 'A resposta é sustentada diretamente pelo trecho do resumo: "' + shorten(fact) + '"'
     };
   };
@@ -319,6 +393,8 @@
     splitFacts,
     keywords,
     factParts,
+    answerUnit,
+    questionLeaksAnswer,
     assemblePdfText,
     generateQuizFromText
   };
