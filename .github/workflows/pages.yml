@@ -24,6 +24,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate JavaScript and quiz generator
+        run: |
+          node --check script.js
+          node --check quiz.js
+          node - <<'NODE'
+          global.window = { document: null };
+          require('./quiz.js');
+
+          const normal = 'A Revolução Francesa foi um processo político e social ocorrido na França no final do século XVIII. A burguesia defendia maior participação política e liberdade econômica. A queda da Bastilha ocorreu em 14 de julho de 1789. A Declaração dos Direitos do Homem e do Cidadão defendia liberdade e igualdade jurídica. A Revolução provocou mudanças profundas na política europeia. O movimento também influenciou outras sociedades.';
+          const quiz = window.nexaQuizEngine.generateQuizFromText(normal, 6);
+          if (quiz.length !== 6) throw new Error('Quiz test: quantidade incorreta');
+          if (quiz.some(q => q.alternatives.length !== 4)) throw new Error('Quiz test: questão sem 4 alternativas');
+          if (quiz.some(q => !q.alternatives.includes(q.answer))) throw new Error('Quiz test: resposta correta ausente');
+          if (quiz.some(q => !q.explanation || !q.explanation.includes('resumo'))) throw new Error('Quiz test: explicação ausente');
+          if (new Set(quiz.map(q => q.question)).size !== quiz.length) throw new Error('Quiz test: perguntas repetidas');
+
+          const fakePdf = [
+            {str:'P',transform:[10,0,0,10,0,100],width:5},
+            {str:'e',transform:[10,0,0,10,6,100],width:5},
+            {str:'d',transform:[10,0,0,10,12,100],width:5},
+            {str:'r',transform:[10,0,0,10,18,100],width:5},
+            {str:'o',transform:[10,0,0,10,24,100],width:5},
+            {str:'I',transform:[10,0,0,10,36,100],width:5},
+            {str:'foi',transform:[10,0,0,10,48,100],width:14},
+            {str:'imperador',transform:[10,0,0,10,66,100],width:50},
+            {str:'do',transform:[10,0,0,10,122,100],width:12},
+            {str:'Brasil',transform:[10,0,0,10,139,100],width:30},
+            {str:'A',transform:[10,0,0,10,0,84],width:5},
+            {str:'queda',transform:[10,0,0,10,12,84],width:28},
+            {str:'da',transform:[10,0,0,10,45,84],width:10},
+            {str:'Bastilha',transform:[10,0,0,10,58,84],width:38},
+            {str:'ocorreu',transform:[10,0,0,10,101,84],width:35},
+            {str:'em',transform:[10,0,0,10,141,84],width:10},
+            {str:'1789.',transform:[10,0,0,10,155,84],width:28}
+          ];
+          const pdfText = window.nexaQuizEngine.assemblePdfText(fakePdf);
+          if (!/Pedro I foi imperador do Brasil/.test(pdfText)) throw new Error('PDF test: texto com letras separadas não foi reconstruído');
+          if (!pdfText.includes('\n')) throw new Error('PDF test: quebras de linha perdidas');
+
+          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas');
+          NODE
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
