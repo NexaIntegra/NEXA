@@ -408,7 +408,7 @@
       p => 'Que resultado aparece depois de "' + p.subject + '" no resumo?'
     ],
     detail: [
-      p => p.detail && /%/.test(p.detail) ? 'Qual porcentagem ou valor o resumo associa a "' + p.subject + '"?' :
+      p => p.detail && /%/.test(p.detail) ? 'Qual porcentagem ou valor o resumo associa a "' + p.subject + '" e o que esse valor representa?' :
         p.detail && /órgão|controle|função|fiscalização/i.test(p.detail) ? 'Qual era a função de "' + p.subject + '" segundo o resumo?' :
         p.detail && /proibido|proibia/i.test(p.detail) ? 'O que era proibido em relação a "' + p.subject + '"?' :
         'Que informação específica o resumo apresenta sobre "' + p.subject + '"?',
@@ -436,9 +436,9 @@
       p => 'Qual característica ou explicação é dada para "' + p.subject + '" no resumo?'
     ],
     date: [
-      p => 'O que aconteceu em ' + p.year + ' segundo o resumo?',
-      p => 'Qual acontecimento o conteúdo situa em ' + p.year + '?',
-      p => 'Que fato do tema estudado está associado a ' + p.year + '?'
+      p => 'Que acontecimento o resumo registra em ' + p.year + ' dentro do tema estudado?',
+      p => 'Qual acontecimento importante o conteúdo situa em ' + p.year + ' e como ele aparece no resumo?',
+      p => 'Que fato do tema estudado está associado a ' + p.year + ' segundo o conteúdo?'
     ],
     general: [
       p => 'O que o resumo afirma sobre "' + p.subject + '"?',
