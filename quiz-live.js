@@ -171,14 +171,45 @@
       return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date', year: year[0] };
     }
 
-    const punctuationParts = clean.split(/\s*[,;]\s*/).map(x => x.trim()).filter(Boolean);
-    if (punctuationParts.length >= 2) {
+    const lead = clean.match(/^(Durante|Nesse|Neste|Nesta|Assim|Por isso|Além disso|Em seguida|No processo|Nesse processo|Durante esse processo)\s+([^,]+),\s*(.+)$/i);
+    const withoutLead = lead ? lead[3].trim() : clean;
+
+    const punctuationParts = withoutLead.split(/\s*[,;]\s*/).map(x => x.trim()).filter(Boolean);
+    if (punctuationParts.length >= 2 && punctuationParts[0].split(/\s+/).length <= 5) {
       return { subject: punctuationParts[0], detail: punctuationParts.slice(1).join(', '), relation: 'general' };
     }
 
-    const words = clean.split(/\s+/);
-    if (words.length >= 9) {
-      const splitAt = Math.min(5, Math.max(3, Math.floor(words.length * 0.45)));
+    const words = withoutLead.split(/\s+/);
+    const verbWords = new Set([
+      'é','são','foi','foram','era','eram','está','estão','estava','estavam','ocorre','ocorreu','ocorrem',
+      'acontece','aconteceu','acontecem','absorve','absorveu','absorvem','entra','entrou','entram','participa',
+      'participou','participam','contribui','contribuiu','contribuem','aumenta','aumentou','aumentam','cresce',
+      'cresceu','crescem','começou','começam','envolveu','envolve','envolvem','facilitou','facilita','facilitam',
+      'provoca','provocou','provocam','defende','defendia','defendem','pertence','pertencia','pertencem',
+      'transporta','transportou','transportam','libera','liberou','liberam','produz','produziu','produzem',
+      'ocorreu','resultou','resulta','levou','leva','permite','permitiu','permitiram','prejudica','prejudicou',
+      'eram','era','ficou','fica','ficam','voltou','volta','voltam','decidiu','decide','decidem'
+    ]);
+
+    let verbIndex = -1;
+    for (let i = 1; i < words.length; i++) {
+      const word = normalize(words[i]).replace(/[.,!?;:]/g,'');
+      if (verbWords.has(word)) {
+        verbIndex = i;
+        break;
+      }
+    }
+
+    if (verbIndex >= 1) {
+      return {
+        subject: words.slice(0, verbIndex).join(' '),
+        detail: words.slice(verbIndex).join(' '),
+        relation: 'general'
+      };
+    }
+
+    if (words.length >= 6) {
+      const splitAt = Math.min(4, Math.max(2, Math.floor(words.length * 0.35)));
       return {
         subject: words.slice(0, splitAt).join(' '),
         detail: words.slice(splitAt).join(' '),
@@ -187,8 +218,8 @@
     }
 
     return {
-      subject: '',
-      detail: clean,
+      subject: words.slice(0, Math.min(2, words.length)).join(' '),
+      detail: words.slice(Math.min(2, words.length)).join(' ') || clean,
       relation: 'general'
     };
   };
@@ -356,6 +387,7 @@
     const count = Math.min(8, Math.max(5, Number(desiredCount) || 6));
     const questions = [];
     const used = new Set();
+    const usedQuestions = new Set();
 
     const relationRank = {
       relation: 7,
@@ -377,11 +409,25 @@
       const key = normalize(fact);
       if (used.has(key)) continue;
 
-      const q = makeDetailedQuestion(fact, facts, i + Math.floor(Math.random() * 100));
+      let q = null;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const candidate = makeDetailedQuestion(
+          fact,
+          facts,
+          i * 13 + attempt + Math.floor(Math.random() * 1000)
+        );
+        if (!candidate) continue;
+        const questionKey = normalize(candidate.question);
+        if (usedQuestions.has(questionKey)) continue;
+        q = candidate;
+        break;
+      }
+
       if (!q) continue;
 
       questions.push(q);
       used.add(key);
+      usedQuestions.add(normalize(q.question));
     }
 
     if (questions.length < 5) throw new Error('Não foi possível montar 5 perguntas confiáveis a partir do resumo.');
