@@ -425,7 +425,7 @@
     }
 
     if (parts.relation === 'change') {
-      const changeDetail = cleanAnswer(String(parts.detail || '').replace(/[.]$/, '').trim());
+      const changeDetail = String(parts.detail || '').replace(/[.]$/, '').replace(/\s{2,}/g, ' ').trim();
       if (subject && changeDetail) {
         return cleanAnswer(subject + ' ' + (parts.verb || 'mudou') + ' ' + changeDetail);
       }
