@@ -6,8 +6,8 @@
   const fail = message => { throw new Error(message); };
   const assertClient = () => client || fail('A NEXA ainda não foi conectada ao Supabase. Configure a chave pública em supabase-config.js.');
   const unwrap = ({ data, error }) => { if (error) throw error; return data; };
-  const summarySelect = 'id,exam_id,title,introduction,content,content_type,pdf_path,pdf_name,author_id,status,created_at,updated_at,profiles!summaries_author_id_fkey(username),exams!summaries_exam_id_fkey(id,subject,title,class_time)';
-  const mapExam = row => row && ({ id: row.id, subject: row.subject, title: row.title, examDate: row.exam_date, classTime: row.class_time });
+  const summarySelect = 'id,exam_id,title,introduction,content,content_type,pdf_path,pdf_name,author_id,status,created_at,updated_at,profiles!summaries_author_id_fkey(username),exams!summaries_exam_id_fkey(id,subject,title,class_time,study_guide)';
+  const mapExam = row => row && ({ id: row.id, subject: row.subject, title: row.title, examDate: row.exam_date, classTime: row.class_time, studyGuide: row.study_guide || '' });
   const mapSummary = row => row && ({
     id: row.id, examId: row.exam_id, title: row.title, introduction: row.introduction || '', content: row.content || '',
     contentType: row.content_type, pdfPath: row.pdf_path, pdfName: row.pdf_name, authorId: row.author_id,
@@ -25,7 +25,7 @@
   const getExams = async () => (unwrap(await assertClient().from('exams').select('*').order('subject')) || []).map(mapExam);
   const getSummaries = async () => (unwrap(await assertClient().from('summaries').select(summarySelect).order('updated_at', { ascending: false })) || []).map(mapSummary);
   const getSummary = async id => mapSummary(unwrap(await assertClient().from('summaries').select(summarySelect).eq('id', id).maybeSingle()));
-  const saveExam = async exam => mapExam(unwrap(await assertClient().from('exams').upsert({ id: exam.id || undefined, subject: exam.subject, title: exam.title, exam_date: exam.examDate || null, class_time: exam.classTime }).select().single()));
+  const saveExam = async exam => mapExam(unwrap(await assertClient().from('exams').upsert({ id: exam.id || undefined, subject: exam.subject, title: exam.title, exam_date: exam.examDate || null, class_time: exam.classTime, study_guide: exam.studyGuide || '' }).select().single()));
   const deleteExam = async id => { unwrap(await assertClient().from('exams').delete().eq('id', id)); };
   const saveSummary = async summary => {
     const user = await currentUser(); if (!user) fail('Entre na sua conta antes de salvar.');
