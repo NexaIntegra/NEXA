@@ -107,12 +107,14 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
             }
           }
 
-          if (!/const bindQuizButton = \(\) =>/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: handler direto do botão ausente');
+          if (/const bindQuizButton = \(\) =>/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: binding antigo ainda presente');
           if (!/reader\.close\(\)/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: proteção contra dialog aninhado ausente');
           const indexHtml = require('fs').readFileSync('index.html', 'utf8');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration test: botão ausente ou duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration test: dialog ausente ou duplicado');
-          if (!/quiz-live\.js\?v=20260924-detailed-3/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
+          if (!/quiz-live\.js\?v=20260924-fix-button-5/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
+          if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration test: bootstrap ausente');
+          if (!/onclick="event\.preventDefault\(\);if\(typeof window\.nexaQuizOpen/.test(indexHtml)) throw new Error('Quiz integration test: fallback inline ausente');
 
           const samples = [
             sample,
