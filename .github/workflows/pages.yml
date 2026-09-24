@@ -90,7 +90,34 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
             }
           }
 
-          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas + 1000 gerações');
+          if (!/const bindQuizButton = \(\) =>/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: handler direto do botão ausente');
+          if (!/reader\.close\(\)/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: proteção contra dialog aninhado ausente');
+          const indexHtml = require('fs').readFileSync('index.html', 'utf8');
+          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration test: botão ausente ou duplicado');
+          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration test: dialog ausente ou duplicado');
+          if (!/quiz-live\.js\?v=20260924-detailed-3/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
+
+          const samples = [
+            sample,
+            `A fotossíntese ocorre nos cloroplastos das células vegetais. A clorofila absorve energia luminosa e participa da produção de matéria orgânica. O gás carbônico entra nas folhas pelos estômatos. A água é absorvida principalmente pelas raízes e transportada pelo xilema. Durante o processo, oxigênio é liberado para o ambiente. A fotossíntese contribui para a cadeia alimentar porque produz matéria orgânica.`,
+            `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção. O uso de máquinas aumentou a produtividade das fábricas. O carvão mineral foi uma fonte importante de energia. A urbanização cresceu com a concentração de trabalhadores nas cidades. As condições de trabalho eram difíceis e provocaram debates sociais. Novas formas de transporte facilitaram a circulação de pessoas e mercadorias.`
+          ];
+          for (const textSource of samples) {
+            for (let run = 0; run < 500; run++) {
+              const generated = window.nexaQuizEngine.generateQuizFromText(textSource, 6);
+              if (generated.length !== 6) throw new Error('Quiz multi-sample: quantidade incorreta');
+              if (new Set(generated.map(q => q.question)).size !== generated.length) throw new Error('Quiz multi-sample: perguntas repetidas');
+              for (const q of generated) {
+                if (q.alternatives.length !== 4 || new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Quiz multi-sample: alternativas inválidas');
+                if (!q.alternatives.includes(q.answer)) throw new Error('Quiz multi-sample: resposta correta ausente');
+                if (q.question.length < 70) throw new Error('Quiz multi-sample: pergunta curta');
+                if (/Sobre "/.test(q.question) || /qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Quiz multi-sample: padrão antigo detectado');
+                if (/qual informação completa corretamente a ideia apresentada/i.test(q.question) && q.question.includes('"este ponto"')) throw new Error('Quiz multi-sample: pergunta vaga detectada');
+              }
+            }
+          }
+
+          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas + 1000 gerações + 1500 gerações multi-sample');
           NODE
 
       - name: Setup Pages
