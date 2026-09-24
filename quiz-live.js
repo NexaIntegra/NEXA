@@ -251,6 +251,8 @@
     return /[.!?]$/.test(text) ? text : text + '.';
   };
 
+  const addPeriod = cleanSentence;
+
   const cleanAnswer = value => {
     let text = cleanSentence(value).replace(/^[•▪●◦\-–—]+\s*/, '').trim();
     if (!text) return '';
