@@ -225,7 +225,7 @@
     const cause = text.match(/^(.+?)\s+(?:ocorreu|aconteceu)\s+porque\s+(.+)$/i);
     if (cause) return { type: 'cause', subject: cause[1].trim(), detail: cause[2].trim() };
 
-    const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram)\s+(.+)$/i);
+    const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram|favoreceu|favoreceram|aumentou|aumentaram|reduziu|reduziram|ampliou|ampliaram|gerou|geraram|facilitou|facilitaram|contribuiu|contribuíram)\s+(.+)$/i);
     if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
 
     const colon = text.indexOf(':');
