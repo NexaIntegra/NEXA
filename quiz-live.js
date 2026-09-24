@@ -160,6 +160,7 @@
 
     const yearAtStart = clean.match(/^\s*(1[5-9]\d{2}|20\d{2})\b/);
     const dateAtStart = clean.match(/^\s*(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?\d{1,2}\s+(?:de\s+)?[A-Za-zÀ-ÿ]+\s+(?:de\s+)?(1[5-9]\d{2}|20\d{2})\b/i);
+    const monthYearAtStart = clean.match(/^\s*(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
     const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
@@ -169,8 +170,11 @@
     const markerList = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido'];
     const marker = markerList.find(item => normalize(clean).includes(normalize(item)));
 
-    if (dateAtStart) {
-      return { subject: clean.replace(dateAtStart[0], '').replace(/^\s*[-—:]+\s*/, '').trim(), detail: clean, relation: 'date', year: dateAtStart[1] };
+    if (dateAtStart || monthYearAtStart) {
+      const dateMatch = dateAtStart || monthYearAtStart;
+      const detail = clean.replace(dateMatch[0], '').replace(/^\s*[-—:]+\s*/, '').trim();
+      const subject = detail.split(/\s*:\s*|\s+[→⇒]\s+/)[0].trim() || detail;
+      return { subject, detail: detail || clean, relation: 'date', year: dateMatch[1] };
     }
 
     if (yearAtStart) {
@@ -332,9 +336,9 @@
       p => 'Que mudança ou resultado aparece relacionado a "' + p.subject + '" no resumo?'
     ],
     detail: [
-      p => 'No tema estudado, qual função ou característica é atribuída a "' + p.subject + '"?',
-      p => 'O que o resumo destaca sobre "' + p.subject + '"?',
-      p => 'Qual descrição explica corretamente "' + p.subject + '" no contexto estudado?'
+      p => p.detail && /%/.test(p.detail) ? 'Qual porcentagem ou valor numérico o resumo associa a "' + p.subject + '"?' : 'No tema estudado, qual função ou característica é atribuída a "' + p.subject + '"?',
+      p => p.detail && /órgão|controle|função|fiscalização/i.test(p.detail) ? 'Qual era a função de "' + p.subject + '" segundo o resumo?' : 'O que o resumo destaca sobre "' + p.subject + '"?',
+      p => p.detail && /proibido|proibia/i.test(p.detail) ? 'O que era proibido em relação a "' + p.subject + '"?' : 'Qual descrição explica corretamente "' + p.subject + '" no contexto estudado?'
     ],
     change: [
       p => 'Que mudança o resumo apresenta em "' + p.subject + '"?',
