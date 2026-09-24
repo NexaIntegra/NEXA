@@ -40,6 +40,16 @@ jobs:
 
           const engine = window.nexaQuizEngine;
           if (!engine || typeof engine.generateQuizFromText !== 'function') throw new Error('Quiz engine não carregou');
+          if (typeof engine.generateHybridQuiz !== 'function') throw new Error('Quiz híbrido não carregou');
+          if (typeof engine.splitStudyGuide !== 'function') throw new Error('Leitor do roteiro não carregou');
+
+          const supabaseSource = fs.readFileSync('supabase.js', 'utf8');
+          const adminHtmlSource = fs.readFileSync('admin.html', 'utf8');
+          const adminJsSource = fs.readFileSync('admin.js', 'utf8');
+          if (!/study_guide/.test(supabaseSource)) throw new Error('Supabase: coluna study_guide não integrada');
+          if (!/studyGuide/.test(supabaseSource)) throw new Error('Supabase: mapeamento studyGuide ausente');
+          if (!/id="examStudyGuide"/.test(adminHtmlSource)) throw new Error('Admin: campo de roteiro ausente');
+          if (!/studyGuide: \$\('#examStudyGuide'\)\.value\.trim\(\)/.test(adminJsSource)) throw new Error('Admin: roteiro não é salvo');
 
           const samples = [
             `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
@@ -79,6 +89,42 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
                 if (q.question.length < 55) throw new Error('Pergunta curta demais');
               }
             }
+          }
+
+          const hybridSummary = `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção.
+O uso de máquinas aumentou a produtividade das fábricas.
+A urbanização cresceu com a concentração de trabalhadores nas cidades.
+As condições de trabalho provocaram debates sociais.
+O carvão mineral foi uma fonte importante de energia.
+Novas formas de transporte facilitaram a circulação.`;
+          const hybridGuide = `Boa prova! Para decorar: memorize os pontos principais.
+Revolução Industrial
+Máquinas e trabalho
+Urbanização
+Condições de trabalho`;
+          const guideTopics = engine.splitStudyGuide(hybridGuide);
+          if (guideTopics.some(topic => /boa prova|para decorar|memorize/i.test(topic))) throw new Error('Hybrid: meta entrou no roteiro');
+          if (guideTopics.length !== 4) throw new Error('Hybrid: roteiro não foi separado corretamente');
+
+          for (let run = 0; run < 600; run++) {
+            const hybrid = engine.generateHybridQuiz(hybridSummary, hybridGuide, 6);
+            if (hybrid.length !== 6) throw new Error('Hybrid: quantidade incorreta');
+            if (new Set(hybrid.map(q => q.question)).size !== 6) throw new Error('Hybrid: perguntas repetidas');
+            if (hybrid.filter(q => q.guideTopic).length < 3) throw new Error('Hybrid: roteiro não está influenciando o quiz');
+            for (const q of hybrid) {
+              if (q.alternatives.length !== 4) throw new Error('Hybrid: 4 alternativas obrigatórias');
+              if (!q.alternatives.includes(q.answer)) throw new Error('Hybrid: resposta correta ausente');
+              if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Hybrid: alternativas repetidas');
+              if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Hybrid: resposta vazou no enunciado');
+              if (q.alternatives.some(a => String(a).trim().length < 14)) throw new Error('Hybrid: alternativa cortada');
+              if (q.alternatives.some(a => /boa prova|para decorar|memorize/i.test(a))) throw new Error('Hybrid: texto de decoração nas alternativas');
+            }
+          }
+
+          for (let run = 0; run < 300; run++) {
+            const fallbackQuiz = engine.generateHybridQuiz(hybridSummary, '', 6);
+            if (fallbackQuiz.length !== 6) throw new Error('Hybrid fallback: quantidade incorreta');
+            if (fallbackQuiz.some(q => q.guideTopic)) throw new Error('Hybrid fallback: roteiro fantasma');
           }
 
           const decorationProbe = `Boa prova! Para decorar: antes, o comércio colonial era controlado por Portugal; de
@@ -130,7 +176,7 @@ Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-final-quality-5/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-hybrid-2/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
           if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
           if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
