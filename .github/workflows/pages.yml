@@ -55,18 +55,18 @@ jobs:
 
           const samples = [
             `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
-Povoamento do interior → fronteiras ampliadas.
-Surgimento de vilas e cidades → vida urbana nova.
-Tropeiros ligavam regiões → formação de mercado interno.
-Intendência das Minas (1702): órgão de controle e fiscalização.
-Quinto: 20% de todo ouro pertencia ao Rei.
-Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.
-Abertura dos Portos (1808): fim do monopólio → comércio livre.
-Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.
-1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.
-1821: D. João volta; D. Pedro fica no Brasil.
-Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
-7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`,
+          Povoamento do interior → fronteiras ampliadas.
+          Surgimento de vilas e cidades → vida urbana nova.
+          Tropeiros ligavam regiões → formação de mercado interno.
+          Intendência das Minas (1702): órgão de controle e fiscalização.
+          Quinto: 20% de todo ouro pertencia ao Rei.
+          Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.
+          Abertura dos Portos (1808): fim do monopólio → comércio livre.
+          Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.
+          1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.
+          1821: D. João volta; D. Pedro fica no Brasil.
+          Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
+          7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`,
             `A fotossíntese ocorre nos cloroplastos das células vegetais. A clorofila absorve energia luminosa e participa da produção de matéria orgânica. O gás carbônico entra nas folhas pelos estômatos. A água é absorvida principalmente pelas raízes e transportada pelo xilema. Durante o processo, oxigênio é liberado para o ambiente. A fotossíntese contribui para a cadeia alimentar porque produz matéria orgânica.`,
             `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção. O uso de máquinas aumentou a produtividade das fábricas. O carvão mineral foi uma fonte importante de energia. A urbanização cresceu com a concentração de trabalhadores nas cidades. As condições de trabalho eram difíceis e provocaram debates sociais. Novas formas de transporte facilitaram a circulação de pessoas e mercadorias.`
           ];
@@ -97,16 +97,16 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
           }
 
           const hybridSummary = `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção.
-O uso de máquinas aumentou a produtividade das fábricas.
-A urbanização cresceu com a concentração de trabalhadores nas cidades.
-As condições de trabalho provocaram debates sociais.
-O carvão mineral foi uma fonte importante de energia.
-Novas formas de transporte facilitaram a circulação.`;
+          O uso de máquinas aumentou a produtividade das fábricas.
+          A urbanização cresceu com a concentração de trabalhadores nas cidades.
+          As condições de trabalho provocaram debates sociais.
+          O carvão mineral foi uma fonte importante de energia.
+          Novas formas de transporte facilitaram a circulação.`;
           const hybridGuide = `Boa prova! Para decorar: memorize os pontos principais.
-Revolução Industrial
-Máquinas e trabalho
-Urbanização
-Condições de trabalho`;
+          Revolução Industrial
+          Máquinas e trabalho
+          Urbanização
+          Condições de trabalho`;
           const guideTopics = engine.splitStudyGuide(hybridGuide);
           if (guideTopics.some(topic => /boa prova|para decorar|memorize/i.test(topic))) throw new Error('Hybrid: meta entrou no roteiro');
           if (guideTopics.length !== 4) throw new Error('Hybrid: roteiro não foi separado corretamente');
@@ -139,9 +139,9 @@ Condições de trabalho`;
           }
 
           const decorationProbe = `Boa prova! Para decorar: antes, o comércio colonial era controlado por Portugal; de
-Ideia para decorar: antes, o comércio colonial era controlado por Portugal; depois vieram mudanças.
-Quinto: 20% de todo ouro pertencia ao Rei.
-Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
+          Ideia para decorar: antes, o comércio colonial era controlado por Portugal; depois vieram mudanças.
+          Quinto: 20% de todo ouro pertencia ao Rei.
+          Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
           const probeFacts = engine.splitFacts(decorationProbe);
           if (probeFacts.some(f => /boa prova|para decorar|ideia para decorar|o mais importante/i.test(f))) {
             throw new Error('Quiz quality: conteúdo de decoração foi aceito como fato');
