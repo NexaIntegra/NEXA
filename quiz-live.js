@@ -247,9 +247,10 @@
 
     if (dayMonthYearAtStart || dateAtStart || monthYearAtStart) {
       const dateMatch = dayMonthYearAtStart || dateAtStart || monthYearAtStart;
+      const yearValue = dayMonthYearAtStart ? dayMonthYearAtStart[2] : (dateAtStart ? dateAtStart[1] : monthYearAtStart[1]);
       const detail = clean.replace(dateMatch[0], '').replace(/^\s*[-—:]+\s*/, '').trim();
       const subject = detail.split(/\s*:\s*|\s+[→⇒]\s+/)[0].trim() || detail;
-      return { subject, detail: detail || clean, relation: 'date', year: dateMatch[1] };
+      return { subject, detail: detail || clean, relation: 'date', year: yearValue };
     }
 
     if (yearAtStart) {
@@ -508,6 +509,20 @@
       if (distinct.some(existing => normalize(existing.answer) === normalize(item.answer))) continue;
       distinct.push(item);
       if (distinct.length === 3) break;
+    }
+
+    // Fallback seguro: quando o resumo tem poucos fatos ou respostas muito parecidas,
+    // usa fatos completos que ainda não foram escolhidos.
+    if (distinct.length < 3) {
+      for (const factOption of shuffle(facts)) {
+        if (normalize(factOption) === normalize(fact)) continue;
+        const fallbackAnswer = answerUnit(factOption, factParts(factOption));
+        if (!fallbackAnswer || isFragment(fallbackAnswer)) continue;
+        if (normalize(fallbackAnswer) === normalize(answer)) continue;
+        if (distinct.some(existing => normalize(existing.answer) === normalize(fallbackAnswer))) continue;
+        distinct.push({ fact: factOption, answer: fallbackAnswer });
+        if (distinct.length === 3) break;
+      }
     }
 
     const alternatives = shuffle(unique([answer, ...distinct.map(item => item.answer)]));
