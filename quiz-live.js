@@ -133,7 +133,7 @@
     const raw = htmlToText(guide);
     const lines = raw
       .split(/\n+/)
-      .map(line => line.replace(/^[\s•▪●◦\-–—]+/, '').trim())
+      .map(line => line.replace(/^[\s•▪●◦\-–—]+/, '').replace(/^\d+[.)]\s*/, '').trim())
       .filter(Boolean);
 
     const topics = [];
@@ -378,9 +378,14 @@
 
   const answerUnit = (fact, parts) => {
     const original = ensureSentence(fact);
+    const detail = ensureSentence(parts.detail || '');
 
     if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 3) {
       return ensureSentence('A sequência apresentada no resumo é: ' + parts.sequence.join(' → '));
+    }
+
+    if (['relation','detail','change','cause','consequence','explanation','date'].includes(parts.relation) && detail.length >= 14) {
+      return detail;
     }
 
     return original;
