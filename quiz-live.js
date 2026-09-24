@@ -387,11 +387,12 @@
   };
 
   const naturalizeAnswer = (fact, parts) => {
-    const original = ensureSentence(fact);
-    const detail = ensureSentence(parts.detail || '');
+    const original = cleanAnswer(ensureSentence(fact));
+    const detail = cleanAnswer(ensureSentence(parts.detail || ''));
+    const subject = cleanLabel(parts.subject || '');
 
     if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 2) {
-      return ensureSentence('A sequência apresentada foi: ' + parts.sequence.join(' → '));
+      return cleanAnswer('A sequência apresentada foi: ' + parts.sequence.join(' → '));
     }
 
     const arrowBits = String(parts.detail || '')
@@ -420,12 +421,11 @@
         return 'Produtos ingleses mais baratos prejudicaram a indústria brasileira.';
       }
 
-      return cleanAnswer(left + ' levou a ' + right);
+      return cleanAnswer(subject || left) + ' levou a ' + cleanAnswer(right).replace(/[.]$/, '') + '.';
     }
 
     if (parts.relation === 'change') {
-      const subject = cleanLabel(parts.subject || '');
-      const changeDetail = String(parts.detail || '').replace(/[.]$/, '').trim();
+      const changeDetail = cleanAnswer(String(parts.detail || '').replace(/[.]$/, '').trim());
       if (subject && changeDetail) {
         return cleanAnswer(subject + ' ' + (parts.verb || 'mudou') + ' ' + changeDetail);
       }
@@ -442,14 +442,14 @@
         const second = bits[1].replace(/^proibido\s+/i, 'o ').trim();
         return cleanAnswer('O ' + first + ', e ' + second);
       }
+
       if (bits.length >= 2) {
-        return ensureSentence(bits[0] + ', e ' + bits.slice(1).join(', e '));
+        return cleanAnswer(bits[0] + ', e ' + bits.slice(1).join(', e '));
       }
     }
 
     if (parts.relation === 'consequence') {
-      const consequence = cleanAnswer(parts.detail || '');
-      if (consequence) return consequence;
+      return original;
     }
 
     if (parts.relation === 'date') {
@@ -471,18 +471,6 @@
       }
       body = body.replace(/\s*=\s*/g, ' passou a ser ');
       return ensureSentence(body);
-    }
-
-    if (parts.relation === 'detail' && /^órgão\b/i.test(detail)) {
-      return cleanAnswer(cleanLabel(parts.subject) + ' era ' + detail);
-    }
-
-    if (parts.relation === 'detail' && /^20% de todo ouro pertencia ao Rei/i.test(detail)) {
-      return cleanAnswer('No Quinto, ' + detail.charAt(0).toLowerCase() + detail.slice(1));
-    }
-
-    if (['detail','cause','general'].includes(parts.relation) && detail.length >= 14) {
-      return detail;
     }
 
     return original;
