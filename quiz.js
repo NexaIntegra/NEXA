@@ -81,11 +81,14 @@
     return out;
   };
 
-  const makeQuestion = (question, answer, alternatives) => ({
-    question,
-    answer,
-    alternatives: shuffle(unique([answer, ...alternatives])).slice(0, 4)
-  });
+  const makeQuestion = (question, answer, alternatives) => {
+    const distractors = unique(alternatives).filter(item => normalize(item) !== normalize(answer)).slice(0, 3);
+    return {
+      question,
+      answer,
+      alternatives: shuffle([answer, ...distractors])
+    };
+  };
 
   const generateQuizFromText = (text, desiredCount) => {
     const source = cleanText(text);
