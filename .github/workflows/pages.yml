@@ -136,7 +136,56 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
             }
           }
 
-          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas + 1000 gerações + 1500 gerações multi-sample');
+          const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{4,}/g) || [])
+            .map(w => w.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+            .filter(w => !new Set(['sobre','qual','quais','dentro','tema','estudado','resumo','conteudo','informacao','alternativa','segundo','essa','esse','como','quando']).has(w));
+
+          for (const q of quiz) {
+            const answerWords = qualityWords(q.answer);
+            const questionNorm = q.question.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const hasAnchor = answerWords.some(word => questionNorm.includes(word)) || /\b(?:1[5-9]\d{2}|20\d{2})\b/.test(q.question);
+            if (!hasAnchor) throw new Error('Quiz quality: pergunta sem conexão clara com a resposta');
+            if (/este ponto|essa ideia|essa informação|a ideia apresentada/i.test(q.question)) throw new Error('Quiz quality: pergunta vaga');
+
+            const answerSet = new Set(qualityWords(q.answer));
+            for (const alternative of q.alternatives) {
+              if (alternative === q.answer) continue;
+              const altSet = new Set(qualityWords(alternative));
+              const intersection = [...answerSet].filter(word => altSet.has(word)).length;
+              const union = new Set([...answerSet, ...altSet]).size || 1;
+              if (intersection / union > 0.92) throw new Error('Quiz quality: alternativa excessivamente parecida com a correta');
+            }
+          }
+
+          const vm = require('vm');
+          const bootstrapSource = require('fs').readFileSync('quiz-bootstrap.js', 'utf8');
+          const buttonHandlers = [];
+          class FakeElement {
+            constructor(id) { this.id = id; }
+            closest(selector) { return selector === '#aiQuizButton' && this.id === 'aiQuizButton' ? this : null; }
+          }
+          const fakeDocument = {
+            readyState: 'complete',
+            querySelector() { return null; },
+            addEventListener(type, handler, capture) {
+              if (type === 'click' && capture === true) buttonHandlers.push(handler);
+            }
+          };
+          let quizOpenCalled = false;
+          const fakeWindow = {
+            nexaQuizOpen() { quizOpenCalled = true; }
+          };
+          vm.runInNewContext(bootstrapSource, { document: fakeDocument, window: fakeWindow, Element: FakeElement, console });
+          const fakeEvent = {
+            target: new FakeElement('aiQuizButton'),
+            preventDefault() {},
+            stopImmediatePropagation() {}
+          };
+          if (buttonHandlers.length !== 1) throw new Error('Quiz button test: listener de captura não registrado');
+          buttonHandlers[0](fakeEvent);
+          if (!quizOpenCalled) throw new Error('Quiz button test: clique não chamou window.nexaQuizOpen');
+
+          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas + 1000 gerações + 1500 gerações multi-sample + integração do botão');
           NODE
 
       - name: Setup Pages
