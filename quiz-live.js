@@ -331,6 +331,9 @@
         const value = cleanAnswer(p.detail || p.answer || '');
         if (!value) return '';
         if (/^órgão\b/i.test(value)) return 'Era um ' + value.toLowerCase();
+        if (/ouro derretido e tributado\s*—\s*proibido ouro em pó/i.test(value)) {
+          return 'O ouro era derretido e tributado, e o ouro em pó era proibido.';
+        }
         return value;
       }
 
@@ -377,20 +380,20 @@
       case 'relation':
         if (/comercio/.test(target)) {
           return [
-            'Que mudança no comércio ocorreu após "' + subject + '"?',
-            'Qual resultado o conteúdo apresenta para o comércio após "' + subject + '"?'
+            'O que mudou no comércio após "' + subject + '"?',
+            'Qual transformação no comércio é associada a "' + subject + '"?'
           ];
         }
         if (/fronteiras?/.test(target)) {
           return [
-            'Que consequência territorial aparece após "' + subject + '"?',
-            'Como o povoamento de "' + subject + '" afetou o território?'
+            'Que efeito territorial resultou de "' + subject + '"?',
+            'Como o povoamento de "' + subject + '" contribuiu para a expansão territorial?'
           ];
         }
         if (/vida urbana|vilas|cidades/.test(target)) {
           return [
-            'Que transformação urbana aparece após "' + subject + '"?',
-            'O que mudou nas áreas urbanas com "' + subject + '"?'
+            'Que transformação urbana resultou de "' + subject + '"?',
+            'Como "' + subject + '" contribuiu para as mudanças na vida urbana?'
           ];
         }
         if (/mercado interno|mercado/.test(target)) {
@@ -478,7 +481,8 @@
           'Qual era a função de "' + subject + '" no período estudado?'
         ];
         if (/proibido|proibia/i.test(p.detail || '')) return [
-          'O que era proibido em relação a "' + subject + '"?'
+          'Como funcionavam as "' + subject + '" e qual restrição existia sobre o ouro?',
+          'Que procedimento era adotado nas "' + subject + '" e o que era proibido?'
         ];
         return [
           'Que característica específica define "' + subject + '"?',
