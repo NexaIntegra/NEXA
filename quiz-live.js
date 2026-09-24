@@ -77,12 +77,6 @@
 
   const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
 
-  const cleanQuestionText = value => String(value || '')
-    .replace(/^\d+[.)]\s*/, '')
-    .replace(/^[•▪●◦\-–—]+\s*/, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
   const factParts = fact => {
     const clean = cleanQuestionText(fact);
     const colon = clean.indexOf(':');
@@ -136,8 +130,9 @@
     if (dashParts.length >= 2) {
       return { subject: dashParts[0], detail: dashParts.slice(1).join(' — '), relation: 'explanation' };
     }
-    if (/\bmudou\b|\bpassou de\b/i.test(clean)) {
-      return { subject: clean, detail: clean, relation: 'change' };
+    const changeMatch = clean.match(/^(.+?)\s+(mudou|passou de)\s+(.+)$/i);
+    if (changeMatch) {
+      return { subject: changeMatch[1].trim(), detail: changeMatch[2] + ' ' + changeMatch[3].trim(), relation: 'change' };
     }
     const markers = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido','ocorreu em','aconteceu em'];
     const marker = markers.find(item => normalize(clean).includes(normalize(item)));
@@ -158,11 +153,11 @@
 
     let question = '';
     if (parts.relation === 'relation') {
-      question = 'O resumo apresenta a relação entre "' + parts.subject + '" e "' + parts.detail + '". Qual alternativa explica corretamente essa relação e seu significado dentro do tema estudado?';
+      question = 'O resumo relaciona "' + parts.subject + '" com "' + parts.detail + '". Qual alternativa interpreta corretamente essa relação e o que ela representa dentro do tema estudado?';
     } else if (parts.relation === 'detail') {
       question = 'Ao tratar de "' + parts.subject + '", qual informação específica o resumo apresenta e como esse ponto se encaixa no conteúdo estudado?';
     } else if (parts.relation === 'change') {
-      question = 'Como o resumo descreve a mudança em "' + topic + '" e quais elementos estão envolvidos nessa transformação?';
+      question = 'Como o resumo descreve a mudança em "' + parts.subject + '" e quais elementos estão envolvidos nessa transformação?';
     } else if (parts.relation === 'consequence') {
       question = 'Segundo o resumo, qual é a principal consequência, característica ou resultado associado a "' + (parts.subject || topic) + '"?';
     } else if (parts.relation === 'explanation') {
