@@ -427,7 +427,7 @@
       const subject = cleanLabel(parts.subject || '');
       const changeDetail = String(parts.detail || '').replace(/[.]$/, '').trim();
       if (subject && changeDetail) {
-        return cleanAnswer(subject + ' ' + changeDetail);
+        return cleanAnswer(subject + ' ' + (parts.verb || 'mudou') + ' ' + changeDetail);
       }
     }
 
@@ -622,12 +622,13 @@
       }
     }
 
-    if (parts.relation === 'change' && otherParts.relation === 'change') {
-      return combineLabelAndDetail(targetSubject, otherParts.detail || '');
+    if (['detail','explanation','general','change','relation','consequence'].includes(parts.relation)) {
+      return combineLabelAndDetail(targetSubject, otherDetail);
     }
 
-    if (['detail','explanation','general'].includes(parts.relation)) {
-      return combineLabelAndDetail(targetSubject, otherDetail);
+    if (parts.relation === 'date' && otherParts.relation === 'date') {
+      const body = cleanAnswer(naturalizeAnswer(otherFact, otherParts)).replace(/^Em\s+\d{4}[,:-]?\s*/i, '');
+      if (body) return cleanAnswer('Em ' + parts.year + ', ' + body);
     }
 
     return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
