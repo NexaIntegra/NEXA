@@ -323,6 +323,9 @@
     generateQuizFromText
   };
 
+  if (typeof document === 'undefined') return;
+  const $ = selector => document.querySelector(selector);
+
   const extractPdfText = async pdfUrl => {
     if (!pdfUrl || !window.pdfjsLib) return '';
     const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
