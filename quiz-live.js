@@ -428,6 +428,8 @@
     return original;
   };
 
+  const answerUnit = naturalizeAnswer;
+
   const cleanAnswer = value => {
     let clean = ensureSentence(value)
       .replace(/^\s*[•▪●◦\-–—]+/, '')
