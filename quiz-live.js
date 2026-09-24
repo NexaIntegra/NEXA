@@ -292,18 +292,32 @@
 
   const shortAnswerForFact = fact => {
     const p = extractRelation(fact);
+
     switch (p.type) {
-      case 'prompt': return addPeriod(p.answer);
-      case 'sequence': return addPeriod(p.parts.slice(1).join(' → '));
-      case 'relation': return addPeriod(p.answer);
-      case 'change': return addPeriod(p.answer);
-      case 'consequence': return addPeriod(p.answer);
-      case 'location': return addPeriod(p.answer);
-      case 'activity': return addPeriod(p.answer);
-      case 'definition': return addPeriod(p.answer);
-      case 'detail': return addPeriod(p.answer);
-      case 'date': return addPeriod(p.detail || p.subject || p.fullAnswer);
-      default: return addPeriod(p.fullAnswer);
+      case 'prompt':
+        return cleanAnswer(p.answer || p.detail);
+      case 'sequence':
+        return cleanAnswer((p.parts || []).slice(1).join(' → ') || p.detail);
+      case 'relation':
+        return cleanAnswer(p.detail || p.answer);
+      case 'change':
+        return cleanAnswer(p.detail || p.answer);
+      case 'cause':
+        return cleanAnswer(p.detail || p.answer);
+      case 'consequence':
+        return cleanAnswer(p.detail || p.answer);
+      case 'location':
+        return cleanAnswer(p.answer || p.detail);
+      case 'activity':
+        return cleanAnswer(p.answer || p.detail);
+      case 'definition':
+        return cleanAnswer(p.detail || p.answer);
+      case 'detail':
+        return cleanAnswer(p.detail || p.answer);
+      case 'date':
+        return cleanAnswer(p.detail || p.answer || p.subject);
+      default:
+        return cleanAnswer(p.fullAnswer || p.detail || p.answer);
     }
   };
 
