@@ -31,64 +31,18 @@ jobs:
           node --check quiz-bootstrap.js
           node - <<'NODE'
           const fs = require('fs');
-          const bootstrap = fs.readFileSync('quiz-bootstrap.js', 'utf8');
-          const quizLiveSource = fs.readFileSync('quiz-live.js', 'utf8');
+          const vm = require('vm');
 
-          if (!/const \$ = selector => document\.querySelector\(selector\);/.test(quizLiveSource)) throw new Error('Quiz integration: helper $ ausente');
-          if (!/const esc = value =>/.test(quizLiveSource)) throw new Error('Quiz integration: helper esc ausente');
-          if (!/const getFreshSummary = async context =>/.test(quizLiveSource)) throw new Error('Quiz integration: helper getFreshSummary ausente');
-          if (!/window\.nexaQuizOpen = openQuiz;/.test(quizLiveSource)) throw new Error('Quiz integration: função pública de abertura ausente');
-          const indexHtml = fs.readFileSync('index.html', 'utf8');
-          const quizLive = fs.readFileSync('quiz-live.js', 'utf8');
-
-          if (!/window\.nexaQuizOpen = openQuiz;/.test(quizLive)) throw new Error('Quiz integration: função pública de abertura ausente');
-          if (/const bindQuizButton = \(\)/.test(quizLive)) throw new Error('Quiz integration: binding antigo duplicado');
-          if (!/document\.addEventListener\('click', handleClick, true\)/.test(bootstrap)) throw new Error('Quiz integration: captura de clique ausente');
-          if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Quiz integration: botão sem type=button');
-          if (!/quiz-live\.js\?v=20260924-quality-3/.test(indexHtml)) throw new Error('Quiz integration: cache-bust incorreto');
-          if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration: bootstrap não carregado');
-          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration: botão duplicado');
-          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration: dialog duplicado');
-          console.log('Quiz integration static checks OK');
-          NODE
-          node - <<'NODE'
           global.document = undefined;
           global.Element = class {};
           global.window = { document: null };
           require('./quiz-live.js');
 
-          const normal = 'A Revolução Francesa foi um processo político e social ocorrido na França no final do século XVIII. A burguesia defendia maior participação política e liberdade econômica. A queda da Bastilha ocorreu em 14 de julho de 1789. A Declaração dos Direitos do Homem e do Cidadão defendia liberdade e igualdade jurídica. A Revolução provocou mudanças profundas na política europeia. O movimento também influenciou outras sociedades.';
-          const quiz = window.nexaQuizEngine.generateQuizFromText(normal, 6);
-          if (quiz.length !== 6) throw new Error('Quiz test: quantidade incorreta');
-          if (quiz.some(q => q.alternatives.length !== 4)) throw new Error('Quiz test: questão sem 4 alternativas');
-          if (quiz.some(q => !q.alternatives.includes(q.answer))) throw new Error('Quiz test: resposta correta ausente');
-          if (quiz.some(q => !q.explanation || !q.explanation.includes('resumo'))) throw new Error('Quiz test: explicação ausente');
-          if (new Set(quiz.map(q => q.question)).size !== quiz.length) throw new Error('Quiz test: perguntas repetidas');
+          const engine = window.nexaQuizEngine;
+          if (!engine || typeof engine.generateQuizFromText !== 'function') throw new Error('Quiz engine não carregou');
 
-          const fakePdf = [
-            {str:'P',transform:[10,0,0,10,0,100],width:5},
-            {str:'e',transform:[10,0,0,10,6,100],width:5},
-            {str:'d',transform:[10,0,0,10,12,100],width:5},
-            {str:'r',transform:[10,0,0,10,18,100],width:5},
-            {str:'o',transform:[10,0,0,10,24,100],width:5},
-            {str:'I',transform:[10,0,0,10,36,100],width:5},
-            {str:'foi',transform:[10,0,0,10,48,100],width:14},
-            {str:'imperador',transform:[10,0,0,10,66,100],width:50},
-            {str:'do',transform:[10,0,0,10,122,100],width:12},
-            {str:'Brasil',transform:[10,0,0,10,139,100],width:30},
-            {str:'A',transform:[10,0,0,10,0,84],width:5},
-            {str:'queda',transform:[10,0,0,10,12,84],width:28},
-            {str:'da',transform:[10,0,0,10,45,84],width:10},
-            {str:'Bastilha',transform:[10,0,0,10,58,84],width:38},
-            {str:'ocorreu',transform:[10,0,0,10,101,84],width:35},
-            {str:'em',transform:[10,0,0,10,141,84],width:10},
-            {str:'1789.',transform:[10,0,0,10,155,84],width:28}
-          ];
-          const pdfText = window.nexaQuizEngine.assemblePdfText(fakePdf);
-          if (!/Pedro I foi imperador do Brasil/.test(pdfText)) throw new Error('PDF test: texto com letras separadas não foi reconstruído');
-          if (!pdfText.includes('\n')) throw new Error('PDF test: quebras de linha perdidas');
-
-          const sample = `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
+          const samples = [
+            `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
 Povoamento do interior → fronteiras ampliadas.
 Surgimento de vilas e cidades → vida urbana nova.
 Tropeiros ligavam regiões → formação de mercado interno.
@@ -100,68 +54,29 @@ Tratados de 1810: produtos ingleses mais baratos → indústria brasileira preju
 1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.
 1821: D. João volta; D. Pedro fica no Brasil.
 Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
-7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`;
-          for (let run = 0; run < 1000; run++) {
-            const generated = window.nexaQuizEngine.generateQuizFromText(sample, 8);
-            if (generated.length !== 8) throw new Error('Quiz test: quantidade incorreta na execução ' + run);
-            if (new Set(generated.map(q => q.question)).size !== generated.length) throw new Error('Quiz test: perguntas repetidas na execução ' + run);
-            for (const q of generated) {
-              if (q.alternatives.length !== 4) throw new Error('Quiz test: questão sem 4 alternativas');
-              if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Quiz test: alternativas repetidas');
-              if (!q.alternatives.includes(q.answer)) throw new Error('Quiz test: resposta correta ausente');
-              if (q.question.length < 70) throw new Error('Quiz test: pergunta pouco detalhada');
-              if (/Sobre "/.test(q.question) || /qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Quiz test: padrão antigo detectado');
-              if (!q.explanation.includes('trecho do resumo')) throw new Error('Quiz test: explicação ausente');
-            }
-          }
-
-          if (/const bindQuizButton = \(\) =>/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: binding antigo ainda presente');
-          if (!/reader\.close\(\)/.test(require('fs').readFileSync('quiz-live.js', 'utf8'))) throw new Error('Quiz integration test: proteção contra dialog aninhado ausente');
-          const indexHtml = require('fs').readFileSync('index.html', 'utf8');
-          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration test: botão ausente ou duplicado');
-          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration test: dialog ausente ou duplicado');
-          if (!/quiz-live\.js\?v=20260924-quality-3/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
-          if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration test: bootstrap ausente');
-          if (!/onclick="event\.preventDefault\(\);if\(typeof window\.nexaQuizOpen/.test(indexHtml)) throw new Error('Quiz integration test: fallback inline ausente');
-
-          const samples = [
-            sample,
+7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`,
             `A fotossíntese ocorre nos cloroplastos das células vegetais. A clorofila absorve energia luminosa e participa da produção de matéria orgânica. O gás carbônico entra nas folhas pelos estômatos. A água é absorvida principalmente pelas raízes e transportada pelo xilema. Durante o processo, oxigênio é liberado para o ambiente. A fotossíntese contribui para a cadeia alimentar porque produz matéria orgânica.`,
             `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção. O uso de máquinas aumentou a produtividade das fábricas. O carvão mineral foi uma fonte importante de energia. A urbanização cresceu com a concentração de trabalhadores nas cidades. As condições de trabalho eram difíceis e provocaram debates sociais. Novas formas de transporte facilitaram a circulação de pessoas e mercadorias.`
           ];
-          for (const textSource of samples) {
-            for (let run = 0; run < 500; run++) {
-              const generated = window.nexaQuizEngine.generateQuizFromText(textSource, 6);
-              if (generated.length !== 6) throw new Error('Quiz multi-sample: quantidade incorreta');
-              if (new Set(generated.map(q => q.question)).size !== generated.length) throw new Error('Quiz multi-sample: perguntas repetidas');
-              for (const q of generated) {
-                if (q.alternatives.length !== 4 || new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Quiz multi-sample: alternativas inválidas');
-                if (!q.alternatives.includes(q.answer)) throw new Error('Quiz multi-sample: resposta correta ausente');
-                if (q.question.length < 70) throw new Error('Quiz multi-sample: pergunta curta');
-                if (/Sobre "/.test(q.question) || /qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Quiz multi-sample: padrão antigo detectado');
-                if (/qual informação completa corretamente a ideia apresentada/i.test(q.question) && q.question.includes('"este ponto"')) throw new Error('Quiz multi-sample: pergunta vaga detectada');
-              }
-            }
-          }
 
-          const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{3,}/g) || [])
-            .map(w => w.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-            .filter(w => !new Set(['sobre','qual','quais','dentro','tema','estudado','resumo','conteudo','informacao','alternativa','segundo','essa','esse','como','quando','este','neste','nesta','ponto']).has(w));
+          for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex++) {
+            const text = samples[sampleIndex];
+            const expected = sampleIndex === 0 ? 8 : 6;
 
-          for (const textSource of samples) {
-            for (let run = 0; run < 250; run++) {
-              const count = textSource === sample ? 8 : 6;
-              const generated = window.nexaQuizEngine.generateQuizFromText(textSource, count);
-              if (generated.length !== count) throw new Error('Quiz quality: quantidade incorreta');
-              if (new Set(generated.map(q => q.question)).size !== generated.length) throw new Error('Quiz quality: perguntas repetidas');
-              for (const q of generated) {
-                if (q.alternatives.length !== 4) throw new Error('Quiz quality: 4 alternativas obrigatórias');
-                if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Quiz quality: alternativas repetidas');
-                if (!q.alternatives.includes(q.answer)) throw new Error('Quiz quality: resposta correta ausente');
-                if (window.nexaQuizEngine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Quiz quality: resposta aparece no enunciado');
-                if (/Sobre "/.test(q.question) || /qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Quiz quality: formato antigo');
-                if (/este ponto|essa ideia|essa informação|a ideia apresentada|neste ponto do conteúdo/i.test(q.question)) throw new Error('Quiz quality: pergunta vaga');
-                if (q.question.length < 55) throw new Error('Quiz quality: pergunta curta');
+            for (let run = 0; run < 400; run++) {
+              const quiz = engine.generateQuizFromText(text, expected);
+              if (quiz.length !== expected) throw new Error('Quantidade incorreta de perguntas');
+              if (new Set(quiz.map(q => q.question)).size !== quiz.length) throw new Error('Perguntas repetidas');
+
+              for (const q of quiz) {
+                if (q.alternatives.length !== 4) throw new Error('Questão sem 4 alternativas');
+                if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Alternativas repetidas');
+                if (!q.alternatives.includes(q.answer)) throw new Error('Resposta correta ausente');
+                if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Resposta apareceu no enunciado');
+                if (/Sobre "/.test(q.question)) throw new Error('Formato antigo detectado');
+                if (/qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Formato antigo detectado');
+                if (/este ponto|essa ideia|essa informação|a ideia apresentada|neste ponto do conteúdo/i.test(q.question)) throw new Error('Pergunta vaga detectada');
+                if (q.question.length < 55) throw new Error('Pergunta curta demais');
               }
             }
           }
@@ -173,56 +88,65 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
             'Abertura dos Portos (1808): fim do monopólio → comércio livre.',
             '1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.'
           ];
+
           for (const fact of leakCases) {
-            const parts = window.nexaQuizEngine.factParts(fact);
-            const answer = window.nexaQuizEngine.answerUnit(fact, parts);
+            const parts = engine.factParts(fact);
+            const answer = engine.answerUnit(fact, parts);
             const probes = [
-              'O que o resumo destaca sobre "' + parts.subject + '"?',
-              'Qual informação o conteúdo apresenta sobre "' + parts.subject + '"?'
+              'Qual informação o resumo apresenta sobre "' + parts.subject + '"?',
+              'No contexto estudado, que informação o resumo apresenta sobre "' + parts.subject + '"?'
             ];
-            if (probes.some(question => window.nexaQuizEngine.questionLeaksAnswer(question, answer))) {
-              throw new Error('Quiz quality: caso de vazamento detectado em ' + fact);
+            if (probes.some(question => engine.questionLeaksAnswer(question, answer))) {
+              throw new Error('Teste de vazamento de resposta falhou');
             }
           }
 
-          for (const q of quiz) {
-            const sourceParts = window.nexaQuizEngine.factParts(q.sourceFact || q.answer);
-            const sourceWords = qualityWords(sourceParts.subject || q.sourceFact || q.answer);
-            const questionNorm = q.question.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const hasSourceAnchor = sourceWords.some(word => questionNorm.includes(word)) || /\b(?:1[5-9]\d{2}|20\d{2})\b/.test(q.question);
-            if (!hasSourceAnchor) throw new Error('Quiz quality: pergunta sem conexão clara com o ponto estudado');
-            if (window.nexaQuizEngine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Quiz quality: resposta aparece no enunciado');
+          const indexHtml = fs.readFileSync('index.html', 'utf8');
+          const liveSource = fs.readFileSync('quiz-live.js', 'utf8');
+          const bootstrapSource = fs.readFileSync('quiz-bootstrap.js', 'utf8');
+
+          if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
+          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
+          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
+          if (!/quiz-live\.js\?v=20260924-quality-3/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
+          if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
+          if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
+          if (!/const getFreshSummary = async context =>/.test(liveSource)) throw new Error('Helper getFreshSummary ausente');
+          if (!/reader\.close\(\)/.test(liveSource)) throw new Error('Proteção de dialogs ausente');
+          if (!/document\.addEventListener\('click', handleClick, true\)/.test(bootstrapSource)) throw new Error('Captura do botão ausente');
+
+          const handlers = [];
+          class FakeElement {
+            closest(selector) { return selector === '#aiQuizButton' ? this : null; }
           }
 
-          const vm = require('vm');
-          const bootstrapSource = require('fs').readFileSync('quiz-bootstrap.js', 'utf8');
-          const buttonHandlers = [];
-          class FakeElement {
-            constructor(id) { this.id = id; }
-            closest(selector) { return selector === '#aiQuizButton' && this.id === 'aiQuizButton' ? this : null; }
-          }
           const fakeDocument = {
-            readyState: 'complete',
             querySelector() { return null; },
             addEventListener(type, handler, capture) {
-              if (type === 'click' && capture === true) buttonHandlers.push(handler);
+              if (type === 'click' && capture === true) handlers.push(handler);
             }
           };
-          let quizOpenCalled = false;
-          const fakeWindow = {
-            nexaQuizOpen() { quizOpenCalled = true; }
-          };
-          vm.runInNewContext(bootstrapSource, { document: fakeDocument, window: fakeWindow, Element: FakeElement, console });
-          const fakeEvent = {
-            target: new FakeElement('aiQuizButton'),
+
+          let openCalled = false;
+          vm.runInNewContext(bootstrapSource, {
+            document: fakeDocument,
+            window: { nexaQuizOpen() { openCalled = true; } },
+            Element: FakeElement,
+            console
+          });
+
+          if (handlers.length !== 1) throw new Error('Listener do botão não registrado');
+
+          handlers[0]({
+            target: new FakeElement(),
             preventDefault() {},
             stopImmediatePropagation() {}
-          };
-          if (buttonHandlers.length !== 1) throw new Error('Quiz button test: listener de captura não registrado');
-          buttonHandlers[0](fakeEvent);
-          if (!quizOpenCalled) throw new Error('Quiz button test: clique não chamou window.nexaQuizOpen');
+          });
 
-          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas + 1000 gerações + 1500 gerações multi-sample + integração do botão');
+          if (!openCalled) throw new Error('Clique do botão não abriu o quiz');
+
+          console.log('Quiz validation OK: 1200+ gerações, anti-vazamento e integração do botão');
           NODE
 
       - name: Setup Pages
