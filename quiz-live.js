@@ -226,7 +226,7 @@
     const cause = text.match(/^(.+?)\s+(?:ocorreu|aconteceu)\s+porque\s+(.+)$/i);
     if (cause) return { type: 'cause', subject: cause[1].trim(), detail: cause[2].trim() };
 
-    const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram)\s+(.+)$/i);
+    const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram|favoreceu|favoreceram|aumentou|aumentaram|reduziu|reduziram|ampliou|ampliaram|gerou|geraram|facilitou|facilitaram|contribuiu|contribuíram)\s+(.+)$/i);
     if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
 
     const location = text.match(/^(.+?)\s+(ocorre|ocorrem|acontece|acontecem|se passa|aconteceu|ocorreu)\s+(em|no|na|nos|nas|dentro|pelas|pelos|pela|pelo)\s+(.+)$/i);
@@ -295,29 +295,29 @@
 
     switch (p.type) {
       case 'prompt':
-        return cleanAnswer(p.answer || p.detail);
+        return cleanAnswer(p.detail || p.answer || '');
       case 'sequence':
-        return cleanAnswer((p.parts || []).slice(1).join(' → ') || p.detail);
+        return cleanAnswer((p.parts || []).slice(1).join(' → ') || p.detail || '');
       case 'relation':
-        return cleanAnswer(p.detail || p.answer);
+        return cleanAnswer(p.detail || p.answer || '');
       case 'change':
-        return cleanAnswer(p.detail || p.answer);
+        return cleanAnswer(p.detail || p.answer || '');
       case 'cause':
-        return cleanAnswer(p.detail || p.answer);
+        return cleanAnswer(p.detail || p.answer || '');
       case 'consequence':
-        return cleanAnswer(p.detail || p.answer);
+        return cleanAnswer(p.detail || p.answer || '');
       case 'location':
-        return cleanAnswer(p.answer || p.detail);
+        return cleanAnswer((p.preposition ? p.preposition + ' ' : '') + (p.answer || p.detail || ''));
       case 'activity':
-        return cleanAnswer(p.answer || p.detail);
+        return cleanAnswer((p.verb ? p.verb + ' ' : '') + (p.answer || p.detail || ''));
       case 'definition':
-        return cleanAnswer(p.detail || p.answer);
+        return cleanAnswer((p.verb ? p.verb + ' ' : '') + (p.detail || p.answer || ''));
       case 'detail':
-        return cleanAnswer(p.detail || p.answer);
+        return cleanAnswer(p.detail || p.answer || '');
       case 'date':
-        return cleanAnswer(p.detail || p.answer || p.subject);
+        return cleanAnswer(p.detail || p.answer || p.subject || '');
       default:
-        return cleanAnswer(p.fullAnswer || p.detail || p.answer);
+        return cleanAnswer(p.fullAnswer || p.detail || p.answer || '');
     }
   };
 
@@ -371,8 +371,8 @@
         ];
       default:
         return [
-          'Qual afirmação descreve corretamente "' + p.subject + '"?',
-          'Que característica ajuda a compreender "' + p.subject + '"?'
+          'Que informação específica o conteúdo apresenta sobre "' + p.subject + '"?',
+          'Qual característica de "' + p.subject + '" é destacada no conteúdo?'
         ];
     }
   };
