@@ -121,9 +121,7 @@
 
   const makeDetailedQuestion = (fact, facts, keyList) => {
     const parts = factParts(fact);
-    const topic = parts.relation === 'general'
-      ? (keyList.find(key => normalize(fact).includes(normalize(key))) || parts.subject)
-      : parts.subject;
+    const topic = parts.subject || keyList.find(key => normalize(fact).includes(normalize(key))) || 'este ponto';
 
     let question = '';
     switch (parts.relation) {
