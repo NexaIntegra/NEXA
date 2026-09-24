@@ -1,12 +1,12 @@
 (() => {
-  const stopWords = new Set([
+  const STOP = new Set([
     'a','ao','aos','as','com','como','da','das','de','do','dos','e','é','em','entre','era','esse','essa','este','esta',
     'foi','foram','há','isso','mais','mas','na','nas','não','nem','no','nos','o','os','ou','para','pela','pelas','pelo',
     'pelos','por','que','se','sem','ser','são','sua','suas','seu','seus','um','uma','umas','uns','sobre','também','já',
     'até','quando','onde','porque','assim','muito','muita','muitos','muitas','cada','outro','outra','outros','outras',
     'num','numa','dessa','desse','deste','desta','deve','devem','pode','podem','após','antes','durante','ainda','apenas',
     'segundo','sendo','tendo','tem','têm','ter','teve','será','serão','fazer','feito','forma','tipo','parte','qual','quais',
-    'capítulo','capitulo'
+    'capítulo','capitulo','conteúdo','conteudo','resumo','informação','informacao'
   ]);
 
   const normalize = value => String(value || '')
@@ -24,22 +24,36 @@
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>');
 
-  const isStudyMeta = text => /\b(?:boa prova|para decorar|ideia para decorar|ideia central|o mais importante|lembre-?se|memorize|decore|dica(?:s)?(?: de| para)\s+(?:a\s+)?prova|macete(?:s)?|vale lembrar|na hora da prova|guarde isso|resumindo|em resumo)\b/i.test(String(text || ''));
+  const clean = value => {
+    const text = decodeEntities(value)
+      .replace(/\bD\.\s+/g, 'D§ ')
+      .replace(/\s+/g, ' ')
+      .replace(/D§\s+/g, 'D. ')
+      .trim();
+    return text.replace(/\.{2,}/g, '.').trim();
+  };
+
+  const addPeriod = value => {
+    const text = clean(value);
+    if (!text) return '';
+    return /[.!?]$/.test(text) ? text : text + '.';
+  };
+
+  const isStudyMeta = text => /\b(?:boa prova|para decorar|ideia para decorar|ideia central|o mais importante|lembre-?se|memorize|decore|dica(?:s)? (?:de|para) (?:a )?prova|macete(?:s)?|vale lembrar|na hora da prova|guarde isso|resumindo|em resumo)\b/i.test(String(text || ''));
 
   const isQuestionLike = text => /^(?:por\s+que|por\s+quê|o\s+que|qual(?:\s+(?:foi|era|é))?|quais|como|quando|onde|quem)\b/i.test(String(text || '').trim());
 
-  const isOutline = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return false;
-    if (/\s*[+=>]\s*/.test(clean) && !/\b(?:é|são|foi|era|eram|ocorre|ocorreu|provocou|causou|levou|permitiu|deixou|ficou|volta|voltou|começou|aumentou|reduziu|produz|produziu|entra|entrou|defendia|defende|representa|significa)\b/i.test(clean)) return true;
-    return false;
+  const isFragment = text => {
+    const value = clean(text);
+    if (!value) return true;
+    if (/[→⇒—–:-]\s*$/.test(value)) return true;
+    return /(?:^|\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|à|aos|às|um|uma|o|a)$/i.test(value);
   };
 
-  const isFragment = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return true;
-    if (/[→⇒—–:-]\s*$/.test(clean)) return true;
-    return /(?:^|\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|à|aos|às|um|uma|o|a)$/i.test(clean);
+  const isOutline = text => {
+    const value = clean(text);
+    return /\s*[+=>]\s*/.test(value) &&
+      !/\b(?:é|são|foi|era|eram|ocorre|ocorreu|provocou|causou|levou|permitiu|deixou|ficou|volta|voltou|começou|aumentou|reduziu|produz|produziu|entra|entrou|defendia|defende|representa|significa)\b/i.test(value);
   };
 
   const htmlToText = html => {
@@ -49,7 +63,6 @@
       box.innerHTML = source;
       return (box.innerText || box.textContent || '')
         .replace(/[\t\r]+/g, ' ')
-        .replace(/[ ]{2,}/g, ' ')
         .replace(/\n[ \t]+/g, '\n')
         .replace(/\n{2,}/g, '\n')
         .trim();
@@ -62,405 +75,281 @@
     ).replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
   };
 
-  const cleanLine = line => String(line || '')
-    .replace(/^[\s•▪●◦\-–—]+/, '')
-    .replace(/^\d+[.)]\s*/, '')
-    .replace(/\bD\.\s+/g, 'D§ ')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/D§\s+/g, 'D. ')
-    .trim();
+  const splitSentences = line => clean(line)
+    .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
+    .map(part => part.trim())
+    .filter(Boolean);
 
-  const splitFacts = text => {
-    const lines = htmlToText(text).split(/\n+/).map(cleanLine).filter(Boolean);
+  const splitFacts = input => {
+    const lines = htmlToText(input).split(/\n+/).map(clean).filter(Boolean);
     const facts = [];
-    let pendingQuestion = null;
+    let pendingPrompt = null;
 
-    const addStatement = value => {
-      const fact = cleanLine(value);
-      if (!fact || fact.length < 24 || fact.length > 500) return;
-      if (isStudyMeta(fact) || isFragment(fact) || isOutline(fact)) return;
-      facts.push({ text: fact, kind: 'statement', answerText: fact });
+    const pushStatement = statement => {
+      const value = addPeriod(statement);
+      if (!value || value.length < 24 || value.length > 500) return;
+      if (isStudyMeta(value) || isFragment(value) || isOutline(value)) return;
+      facts.push({ text: value, kind: 'statement', prompt: '', answerText: value });
+    };
+
+    const pushPrompt = (prompt, answer) => {
+      const q = addPeriod(prompt).replace(/\.$/, '?');
+      const a = addPeriod(answer);
+      if (!q.endsWith('?') || !a || a.length < 12) return;
+      if (isStudyMeta(a) || isFragment(a) || isOutline(a)) return;
+      facts.push({ text: q + ' ' + a, kind: 'prompt', prompt: q, answerText: a });
     };
 
     for (const line of lines) {
       if (isStudyMeta(line)) continue;
 
-      if (pendingQuestion) {
-        if (!isQuestionLike(line) && !isOutline(line) && line.length >= 10) {
-          const protectedLine = line.replace(/\bD\.\s+/g, 'D§ ');
-          const parts = protectedLine
-            .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
-            .map(part => part.replace(/D§\s+/g, 'D. ').trim())
-            .filter(Boolean);
-
-          const answerText = parts.shift() || line;
-          if (answerText.length >= 10 && !isStudyMeta(answerText) && !isOutline(answerText) && !isFragment(answerText)) {
-            facts.push({
-              text: pendingQuestion + ' ' + answerText,
-              kind: 'prompt',
-              prompt: pendingQuestion,
-              answerText
-            });
-            for (const extra of parts) addStatement(extra);
-            pendingQuestion = null;
-            continue;
-          }
+      if (pendingPrompt) {
+        if (!isQuestionLike(line) && line.length >= 12 && !isStudyMeta(line)) {
+          const parts = splitSentences(line);
+          pushPrompt(pendingPrompt, parts.shift() || line);
+          parts.forEach(pushStatement);
+          pendingPrompt = null;
+          continue;
         }
-        pendingQuestion = null;
+        pendingPrompt = null;
       }
 
-      const qMark = line.indexOf('?');
-      if (qMark >= 8) {
-        const prompt = line.slice(0, qMark + 1).trim();
-        const rest = line.slice(qMark + 1).replace(/^\s*[:—–-]+\s*/, '').trim();
+      const questionMark = line.indexOf('?');
+      if (questionMark >= 8) {
+        const prompt = line.slice(0, questionMark + 1).trim();
+        const rest = line.slice(questionMark + 1).replace(/^\s*[:—–-]+\s*/, '').trim();
 
         if (isQuestionLike(prompt)) {
-          if (rest.length >= 10 && !isStudyMeta(rest)) {
-            const protectedRest = rest.replace(/\bD\.\s+/g, 'D§ ');
-            const answerParts = protectedRest
-              .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
-              .map(part => part.replace(/D§\s+/g, 'D. ').trim())
-              .filter(Boolean);
-
-            const usable = answerParts.filter(part =>
-              part.length >= 10 &&
-              !isStudyMeta(part) &&
-              !isOutline(part) &&
-              !isFragment(part)
-            );
-
-            const answerText = usable[0] || '';
-            if (answerText) {
-              facts.push({
-                text: prompt + ' ' + answerText,
-                kind: 'prompt',
-                prompt,
-                answerText
-              });
-
-              const answerUsed = answerParts.indexOf(answerText);
-              answerParts.forEach((extra, index) => {
-                if (index !== answerUsed) addStatement(extra);
-              });
-            } else {
-              pendingQuestion = prompt;
-            }
+          if (rest) {
+            const parts = splitSentences(rest);
+            pushPrompt(prompt, parts.shift() || rest);
+            parts.forEach(pushStatement);
           } else {
-            pendingQuestion = prompt;
+            pendingPrompt = prompt;
           }
           continue;
         }
       }
 
-      const protectedLine = line.replace(/\bD\.\s+/g, 'D§ ');
-      const statements = protectedLine
-        .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)
-        .map(part => part.replace(/D§\s+/g, 'D. ').trim())
-        .filter(Boolean);
-
-      for (const statement of statements) {
-        addStatement(statement);
-      }
+      splitSentences(line).forEach(pushStatement);
     }
-
-    // Pergunta sem resposta não é um fato: descartamos para evitar questões artificiais.
 
     return [...new Map(facts.map(f => [normalize(f.text), f])).values()];
   };
 
   const meaningfulWords = value => (String(value || '').match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{3,}/g) || [])
     .map(normalize)
-    .filter(word => word && !stopWords.has(word) && word.length >= 4);
+    .filter(word => word && !STOP.has(word) && word.length >= 4);
 
-  const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
+  const unique = values => [...new Map(values.filter(Boolean).map(value => [normalize(value), value])).values()];
 
-  const shuffle = list => {
-    const copy = [...list];
-    for (let i = copy.length - 1; i > 0; i--) {
+  const shuffle = values => {
+    const out = [...values];
+    for (let i = out.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
+      [out[i], out[j]] = [out[j], out[i]];
     }
-    return copy;
+    return out;
   };
-
-  const keywords = text => [...new Set(meaningfulWords(text))].slice(0, 60);
 
   const splitStudyGuide = guide => {
     const topics = [];
-    for (const line of htmlToText(guide).split(/\n+/).map(cleanLine).filter(Boolean)) {
-      if (isStudyMeta(line) || isFragment(line) || isOutline(line)) continue;
-      for (const chunk of line.split(/\s*;\s*/).map(x => x.trim()).filter(Boolean)) {
-        if (chunk.length >= 3 && chunk.length <= 180 && !isFragment(chunk)) topics.push(chunk);
+    for (const raw of htmlToText(guide).split(/\n+/)) {
+      const line = clean(raw);
+      if (!line || isStudyMeta(line) || isFragment(line)) continue;
+      for (const topic of line.split(/\s*;\s*/).map(clean).filter(Boolean)) {
+        if (topic.length >= 3 && topic.length <= 180 && !isStudyMeta(topic) && !isFragment(topic) && !isOutline(topic)) {
+          topics.push(topic);
+        }
       }
     }
     return unique(topics);
   };
 
-  const scoreFactAgainstGuide = (fact, guideTopics) => {
-    const factText = typeof fact === 'string' ? fact : fact.text;
-    if (!guideTopics.length || !factText) return { score: 0, topic: '' };
+  const relationData = fact => {
+    const obj = typeof fact === 'string'
+      ? { text: addPeriod(fact), kind: 'statement', prompt: '', answerText: addPeriod(fact) }
+      : fact;
 
-    const factNorm = normalize(factText);
-    const factWords = new Set(meaningfulWords(factText));
-    let best = { score: 0, topic: '' };
-
-    for (const topic of guideTopics) {
-      const topicNorm = normalize(topic);
-      const topicWords = meaningfulWords(topic);
-      let score = 0;
-
-      if (topicNorm.length >= 5 && factNorm.includes(topicNorm)) score += 14;
-
-      const shared = topicWords.filter(word => factWords.has(word)).length;
-      score += shared * 4;
-      if (topicWords.length && shared / topicWords.length >= 0.5) score += 6;
-
-      const years = topicNorm.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
-      const factYears = factNorm.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
-      score += years.filter(year => factYears.includes(year)).length * 14;
-
-      if (score > best.score) best = { score, topic };
+    if (obj.kind === 'prompt') {
+      return {
+        type: 'prompt',
+        subject: obj.prompt,
+        answer: addPeriod(obj.answerText),
+        prompt: obj.prompt,
+        fullAnswer: obj.answerText
+      };
     }
 
-    return best;
-  };
-
-  const rankFactsByGuide = (facts, guideTopics) => facts
-    .map(fact => ({ fact, ...scoreFactAgainstGuide(fact, guideTopics) }))
-    .sort((a,b) => b.score - a.score || a.fact.text.length - b.fact.text.length);
-
-  const assemblePdfText = items => {
-    const lineMap = new Map();
-    for (const item of Array.isArray(items) ? items : []) {
-      const value = String(item && item.str || '').trim();
-      if (!value) continue;
-      const y = Math.round(Number(item && item.transform && item.transform[5] || 0));
-      const x = Number(item && item.transform && item.transform[4] || 0);
-      const key = Math.round(y / 2) * 2;
-      if (!lineMap.has(key)) lineMap.set(key, []);
-      lineMap.get(key).push({ value, x, width: Number(item && item.width || 0) });
-    }
-    return [...lineMap.entries()].sort((a,b) => b[0] - a[0]).map(entry => {
-      const row = entry[1].sort((a,b) => a.x - b.x);
-      let line = '';
-      row.forEach((item, i) => {
-        const prev = row[i - 1];
-        const gap = prev ? item.x - (prev.x + prev.width) : Infinity;
-        const glued = prev && prev.value.length === 1 && item.value.length === 1 && gap <= Math.max(2, prev.width * 0.6);
-        line += (i && !glued ? ' ' : '') + item.value;
-      });
-      return line;
-    }).join('\n');
-  };
-
-  const extractNatural = text => {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return null;
-
-    const protectedText = clean.replace(/\bD\.\s+/g, 'D§ ');
-    const tokens = protectedText.split(' ');
-    const introMatch = clean.match(/^(Durante|Antes|Depois|Nesse|No|Na|Ao|Em|Com)\b[^,]{0,45},\s*(.+)$/i);
-    const core = introMatch ? introMatch[2].trim() : clean;
-    const prefix = introMatch ? introMatch[1] : '';
-
-    const pattern = core.match(/^(.+?)\s+(ocorre|ocorrem|acontece|acontecem|começou|comecou|começam|comecam|absorve|absorveu|absorvem|entra|entrou|entram|participa|participou|participam|contribui|contribuiu|contribuem|cresce|cresceu|aumenta|aumentou|aumentam|crescem|facilitou|facilita|facilitam|é absorvida|foi absorvida|é transportada|foi transportada|é liberado|foi liberado)\s+(.+)$/i);
-    if (!pattern) return null;
-
-    let subject = pattern[1].trim();
-    const verb = pattern[2].trim();
-    const detail = pattern[3].trim().replace(/D§\s+/g, 'D. ');
-
-    if (introMatch && subject) {
-      subject = subject.replace(/^(o|a|os|as)\s+/i, match => match);
-    }
-
-    if (subject.length < 3 || subject.split(/\s+/).length > 8) return null;
-    return { type: 'natural', subject, verb, detail, prefix: prefix || '' };
-  };
-
-  const extractRelation = fact => {
-    const obj = typeof fact === 'string' ? { text: fact, kind: 'statement', answerText: fact } : fact;
     const text = obj.text;
+    const years = text.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
 
-    if (obj.kind === 'prompt') return { type: 'prompt', prompt: obj.prompt, detail: obj.answerText, subject: obj.prompt };
-
-    const date = text.match(/^\s*(?:(\d{1,2})\s+)?(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?(1[5-9]\d{2}|20\d{2})\b\s*[:—–-]\s*(.+)$/i);
-    if (date) return { type: 'date', year: date[2], subject: date[3].trim(), detail: date[3].trim() };
-
-    const arrow = text.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-    if (arrow.length >= 2) return { type: arrow.length >= 3 ? 'sequence' : 'relation', subject: arrow[0], parts: arrow, detail: arrow.slice(1).join(' → ') };
+    const arrow = text.split(/\s+[→⇒]\s+/).map(clean).filter(Boolean);
+    if (arrow.length >= 2) {
+      return {
+        type: arrow.length >= 3 ? 'sequence' : 'relation',
+        subject: clean(arrow[0]),
+        answer: clean(arrow.slice(1).join(' → ')),
+        parts: arrow,
+        fullAnswer: text,
+        years
+      };
+    }
 
     const change = text.match(/^(.+?)\s+(mudou|passou de|foi substitu[ií]do por|deixou de)\s+(.+)$/i);
-    if (change) return { type: 'change', subject: change[1].trim(), verb: change[2], detail: change[3].trim() };
-
-    const cause = text.match(/^(.+?)\s+(?:ocorreu|aconteceu)\s+porque\s+(.+)$/i);
-    if (cause) return { type: 'cause', subject: cause[1].trim(), detail: cause[2].trim() };
+    if (change) return {
+      type: 'change',
+      subject: clean(change[1]),
+      answer: clean(change[3]),
+      verb: clean(change[2]),
+      fullAnswer: text,
+      years
+    };
 
     const consequence = text.match(/^(.+?)\s+(provocou|causou|levou a|levou à|resultou em|permitiu|prejudicou|provocaram|causaram|favoreceu|favoreceram|aumentou|aumentaram|reduziu|reduziram|ampliou|ampliaram|gerou|geraram|facilitou|facilitaram|contribuiu|contribuíram)\s+(.+)$/i);
-    if (consequence) return { type: 'consequence', subject: consequence[1].trim(), verb: consequence[2], detail: consequence[3].trim() };
+    if (consequence) return {
+      type: 'consequence',
+      subject: clean(consequence[1]),
+      answer: clean(consequence[3]),
+      verb: clean(consequence[2]),
+      fullAnswer: text,
+      years
+    };
 
-    const natural = extractNatural(text);
-    if (natural) return natural;
+    const location = text.match(/^(.+?)\s+(ocorre|ocorrem|acontece|acontecem|se passa|aconteceu|ocorreu)\s+(?:em|no|na|nos|nas|dentro|pelas|pelos|pela|pelo)\s+(.+)$/i);
+    if (location) return {
+      type: 'location',
+      subject: clean(location[1]),
+      answer: clean(location[3]),
+      verb: clean(location[2]),
+      fullAnswer: text,
+      years
+    };
 
-    const colon = text.indexOf(':');
-    if (colon > 3 && colon < 120) {
-      const subject = text.slice(0, colon).trim();
-      const detail = text.slice(colon + 1).trim();
-      if (subject && detail) return { type: 'detail', subject, detail };
-    }
+    const activity = text.match(/^(.+?)\s+(absorve|absorveu|entra|entrou|participa|participou|produz|produziu|libera|liberou|transporta|transportou|começou|comecou|começa|comeca|cresce|cresceu|aumenta|aumentou|facilita|facilitou|contribui|contribuiu|defende|defendia|representa|representava|significa|significava|é|são|era|eram|foi|foram|é absorvida|é transportada|é liberado|foi absorvida|foi transportada|foi liberado)\s+(.+)$/i);
+    if (activity) return {
+      type: 'activity',
+      subject: clean(activity[1]),
+      answer: clean(activity[3]),
+      verb: clean(activity[2]),
+      fullAnswer: text,
+      years
+    };
+
+    const colon = text.match(/^(.+?)\s*:\s*(.+)$/);
+    if (colon && colon[1].length <= 120) return {
+      type: 'detail',
+      subject: clean(colon[1]),
+      answer: clean(colon[2]),
+      fullAnswer: text,
+      years
+    };
 
     const definition = text.match(/^(.+?)\s+(é|são|era|eram|foi|foram|significa|representa|corresponde a)\s+(.+)$/i);
-    if (definition) return { type: 'definition', subject: definition[1].trim(), verb: definition[2], detail: definition[3].trim() };
+    if (definition) return {
+      type: 'definition',
+      subject: clean(definition[1]),
+      answer: clean(definition[3]),
+      verb: clean(definition[2]),
+      fullAnswer: text,
+      years
+    };
 
-    return { type: 'general', subject: text.replace(/[.]$/, '').trim(), detail: text };
-  };
-
-  const cleanSentence = value => {
-    const text = String(value || '')
-      .replace(/\s+/g, ' ')
-      .replace(/\.{2,}/g, '.')
-      .replace(/\s+([,.;:!?])/g, '$1')
-      .trim();
-    if (!text) return '';
-    return /[.!?]$/.test(text) ? text : text + '.';
-  };
-
-  const cleanAnswer = value => {
-    let text = cleanSentence(value).replace(/^[•▪●◦\-–—]+\s*/, '').trim();
-    if (!text) return '';
-    return text.charAt(0).toUpperCase() + text.slice(1);
+    return {
+      type: 'general',
+      subject: clean(text.replace(/[.]$/, '')),
+      answer: clean(text),
+      fullAnswer: text,
+      years
+    };
   };
 
   const answerForFact = fact => {
-    const obj = typeof fact === 'string' ? { text: fact, kind: 'statement', answerText: fact } : fact;
-    if (obj.kind === 'prompt') return cleanAnswer(obj.answerText);
-
-    const p = extractRelation(obj);
-    if (p.type === 'sequence') return cleanAnswer('A sequência apresentada é: ' + p.parts.join(' → '));
-    return cleanAnswer(obj.answerText || obj.text);
-  };
-
-  const questionForFact = fact => {
-    const p = extractRelation(fact);
-    if (p.type === 'prompt') return [p.prompt];
-
-    switch (p.type) {
-      case 'sequence':
-        return [
-          'Qual sequência de acontecimentos é apresentada a partir de "' + p.subject + '"?',
-          'Como os acontecimentos ligados a "' + p.subject + '" se encadeiam?'
-        ];
-      case 'relation':
-        return [
-          'O que aconteceu a partir de "' + p.subject + '"?',
-          'Qual resultado é apresentado após "' + p.subject + '"?'
-        ];
-      case 'change':
-        return [
-          'Como "' + p.subject + '" mudou segundo o conteúdo?',
-          'Qual transformação ocorreu em "' + p.subject + '"?'
-        ];
-      case 'cause':
-        return [
-          'Por que "' + p.subject + '" aconteceu?',
-          'Que causa explica "' + p.subject + '"?'
-        ];
-      case 'consequence':
-        return [
-          'O que "' + p.subject + '" provocou?',
-          'Qual foi o efeito de "' + p.subject + '"?'
-        ];
-      case 'date':
-        return [
-          'O que aconteceu em ' + p.year + '?',
-          'Qual acontecimento está associado a ' + p.year + '?'
-        ];
-      case 'natural': {
-        const subject = p.subject;
-        const v = normalize(p.verb);
-        if (/\bocorre\b|\bacontece\b/.test(v) && /\b(?:em|no|na|nos|nas|dentro|pelas|pelo|pela)\b/i.test(p.detail)) {
-          return [
-            'Onde ocorre "' + subject + '" segundo o conteúdo?',
-            'Em que contexto "' + subject + '" acontece de acordo com o resumo?'
-          ];
-        }
-        if (/absorve|participa|contribui/.test(v)) {
-          return [
-            'Qual função ou ação de "' + subject + '" é destacada no conteúdo?',
-            'Que papel "' + subject + '" exerce no processo estudado?'
-          ];
-        }
-        if (/entra|absorvida|transportada|liberado/.test(v)) {
-          return [
-            'Como "' + subject + '" aparece ou atua no processo descrito?',
-            'O que o conteúdo explica sobre o papel de "' + subject + '" nesse processo?'
-          ];
-        }
-        if (/começou/.test(v)) {
-          return [
-            'Como o conteúdo apresenta o início de "' + subject + '"?',
-            'Onde e de que forma "' + subject + '" começou segundo o resumo?'
-          ];
-        }
-        if (/cresce|cresceu|aumenta|aumentou|facilitou|facilita/.test(v)) {
-          return [
-            'O que aconteceu com "' + subject + '" segundo o conteúdo?',
-            'Que mudança é apresentada em relação a "' + subject + '"?'
-          ];
-        }
-        return [
-          'Que informação específica o conteúdo apresenta sobre "' + subject + '"?',
-          'Como "' + subject + '" é apresentado no contexto estudado?'
-        ];
-      }
-      case 'definition':
-        return [
-          'O que significa "' + p.subject + '" no contexto estudado?',
-          'Qual definição explica "' + p.subject + '"?'
-        ];
-      case 'detail':
-        if (/%/.test(p.detail)) return ['Qual valor ou porcentagem está associado a "' + p.subject + '"?'];
-        if (/órgão|controle|fiscalização|função/i.test(p.detail)) return ['Qual era a função de "' + p.subject + '" no período estudado?'];
-        if (/proibido|proibia/i.test(p.detail)) return ['O que era proibido em relação a "' + p.subject + '"?'];
-        return [
-          'Qual característica define "' + p.subject + '" no contexto estudado?',
-          'Que informação específica ajuda a compreender "' + p.subject + '"?'
-        ];
-      default:
-        return [
-          'Qual afirmação descreve corretamente "' + p.subject + '"?',
-          'Que característica ajuda a compreender "' + p.subject + '"?'
-        ];
+    const r = relationData(fact);
+    switch (r.type) {
+      case 'prompt': return addPeriod(r.answer);
+      case 'sequence': return addPeriod(r.parts.join(' → '));
+      case 'relation': return addPeriod(r.subject + ' → ' + r.answer);
+      case 'change': return addPeriod(r.subject + ' ' + r.verb + ' ' + r.answer);
+      case 'consequence': return addPeriod(r.subject + ' ' + r.verb + ' ' + r.answer);
+      case 'location': return addPeriod(r.subject + ' ' + r.verb + ' ' + r.answer);
+      case 'activity': return addPeriod(r.subject + ' ' + r.verb + ' ' + r.answer);
+      case 'definition': return addPeriod(r.subject + ' ' + r.verb + ' ' + r.answer);
+      case 'detail': return addPeriod(r.subject + ': ' + r.answer);
+      default: return addPeriod(r.fullAnswer);
     }
   };
 
-  const questionLeaksAnswer = (question, answer, subject = '') => {
-    const qNorm = normalize(question);
-    const aNorm = normalize(answer);
-    if (!aNorm) return false;
-    if (qNorm.includes(aNorm)) return true;
-
-    const qWords = new Set(meaningfulWords(question));
-    const subjectWords = new Set(meaningfulWords(subject));
-    const answerWords = [...new Set(meaningfulWords(answer))]
-      .filter(word => !subjectWords.has(word));
-    if (answerWords.length < 3) return false;
-
-    const overlap = answerWords.filter(word => qWords.has(word)).length / answerWords.length;
-    return overlap >= 0.75;
+  const shortAnswerForFact = fact => {
+    const r = relationData(fact);
+    switch (r.type) {
+      case 'prompt': return addPeriod(r.answer);
+      case 'sequence': return addPeriod(r.parts.join(' → '));
+      case 'relation': return addPeriod(r.answer);
+      case 'change': return addPeriod(r.answer);
+      case 'consequence': return addPeriod(r.answer);
+      case 'location': return addPeriod(r.answer);
+      case 'activity': return addPeriod(r.answer);
+      case 'definition': return addPeriod(r.answer);
+      case 'detail': return addPeriod(r.answer);
+      default: return addPeriod(r.fullAnswer);
+    }
   };
 
-  const candidateLeaksCorrectAnswer = (candidate, answer) => {
-    const cNorm = normalize(candidate);
-    const aNorm = normalize(answer);
-    if (!aNorm) return false;
-    if (cNorm.includes(aNorm)) return true;
+  const questionVariants = fact => {
+    const r = relationData(fact);
+    if (r.type === 'prompt') return [r.prompt];
 
-    const aWords = [...new Set(meaningfulWords(answer))];
-    const cWords = new Set(meaningfulWords(candidate));
-    if (aWords.length < 3) return false;
-
-    return aWords.filter(word => cWords.has(word)).length / aWords.length >= 0.88;
+    switch (r.type) {
+      case 'sequence':
+        return [
+          'Qual sequência de acontecimentos é apresentada a partir de "' + r.subject + '"?',
+          'Como os acontecimentos ligados a "' + r.subject + '" se encadeiam?'
+        ];
+      case 'relation':
+        return [
+          'O que ocorreu a partir de "' + r.subject + '"?',
+          'Qual resultado o conteúdo associa a "' + r.subject + '"?'
+        ];
+      case 'change':
+        return [
+          'Que transformação ocorreu em "' + r.subject + '"?',
+          'Como "' + r.subject + '" mudou segundo o conteúdo?'
+        ];
+      case 'consequence':
+        return [
+          'Que efeito "' + r.subject + '" provocou?',
+          'Qual consequência o conteúdo apresenta para "' + r.subject + '"?'
+        ];
+      case 'location':
+        return [
+          'Onde ocorre "' + r.subject + '" segundo o conteúdo?',
+          'Em que local ou estrutura "' + r.subject + '" acontece?'
+        ];
+      case 'activity':
+        return [
+          'Qual ação ou característica do conteúdo é associada a "' + r.subject + '"?',
+          'Que papel "' + r.subject + '" exerce no processo estudado?'
+        ];
+      case 'definition':
+        return [
+          'Como "' + r.subject + '" é definido no conteúdo?',
+          'Que definição caracteriza "' + r.subject + '"?'
+        ];
+      case 'detail':
+        if (/%/.test(r.answer)) return ['Qual valor está associado a "' + r.subject + '"?'];
+        if (/órgão|controle|fiscalização|função/i.test(r.answer)) return ['Qual era a função de "' + r.subject + '" no período estudado?'];
+        if (/proibido|proibia/i.test(r.answer)) return ['O que era proibido em relação a "' + r.subject + '"?'];
+        return [
+          'Que característica específica define "' + r.subject + '" nesse contexto?',
+          'Que informação do conteúdo ajuda a explicar "' + r.subject + '"?'
+        ];
+      default:
+        return [
+          'Que informação específica o conteúdo apresenta sobre "' + r.subject + '"?',
+          'Como "' + r.subject + '" é apresentado no contexto estudado?'
+        ];
+    }
   };
 
   const answerSimilarity = (a, b) => {
@@ -472,71 +361,142 @@
     return inter / union;
   };
 
-  const scoreDistractor = (answer, question, candidate, type, candidateType, guideTopic) => {
-    const sim = answerSimilarity(answer, candidate);
-    const lengthScore = Math.max(0, 8 - Math.abs(answer.length - candidate.length) / 22);
-    const sameType = type === candidateType ? 12 : 0;
-    const questionWords = new Set(meaningfulWords(question));
-    const sharedContext = meaningfulWords(candidate).filter(word => questionWords.has(word)).length;
-    const guideBonus = guideTopic && normalize(candidate).includes(normalize(guideTopic)) ? 6 : 0;
-    return sameType + sharedContext * 1.5 + lengthScore + guideBonus - sim * 3;
+  const leaksAnswer = (question, answer, subject = '') => {
+    const q = normalize(question);
+    const a = normalize(answer);
+    if (!a) return true;
+    if (q.includes(a)) return true;
+
+    const qWords = new Set(meaningfulWords(question));
+    const subjectWords = new Set(meaningfulWords(subject));
+    const aWords = [...new Set(meaningfulWords(answer))]
+      .filter(word => !subjectWords.has(word));
+
+    if (aWords.length < 3) return false;
+    return aWords.filter(word => qWords.has(word)).length / aWords.length >= 0.72;
   };
 
-  const makeDistractors = (fact, allFacts, answer, question, guideTopic) => {
-    const target = extractRelation(fact);
-    const ranked = [];
+  const candidateLeaksCorrectAnswer = (candidate, answer) => {
+    const c = normalize(candidate);
+    const a = normalize(answer);
+    if (!a) return false;
+    if (c.includes(a)) return true;
+
+    const aw = [...new Set(meaningfulWords(answer))];
+    const cw = new Set(meaningfulWords(candidate));
+    if (aw.length < 3) return false;
+    return aw.filter(word => cw.has(word)).length / aw.length >= 0.88;
+  };
+
+  const scoreGuide = (fact, topics) => {
+    if (!topics.length) return { score: 0, topic: '' };
+    const text = typeof fact === 'string' ? fact : fact.text;
+    const fn = normalize(text);
+    const fw = new Set(meaningfulWords(text));
+    const years = fn.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
+    let best = { score: 0, topic: '' };
+
+    for (const topic of topics) {
+      const tn = normalize(topic);
+      const tw = meaningfulWords(topic);
+      let score = tn.length >= 5 && fn.includes(tn) ? 14 : 0;
+      const shared = tw.filter(word => fw.has(word)).length;
+      score += shared * 4;
+      if (tw.length && shared / tw.length >= 0.5) score += 6;
+      const topicYears = tn.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/g) || [];
+      score += topicYears.filter(year => years.includes(year)).length * 16;
+      if (score > best.score) best = { score, topic };
+    }
+    return best;
+  };
+
+  const rankFactsByGuide = (facts, topics) => facts
+    .map(fact => ({ fact, ...scoreGuide(fact, topics) }))
+    .sort((a,b) => b.score - a.score || a.fact.text.length - b.fact.text.length);
+
+  const compatibilityScore = (target, candidate, targetType, candidateType) => {
+    const tw = new Set(meaningfulWords(target));
+    const cw = new Set(meaningfulWords(candidate));
+    const shared = [...tw].filter(word => cw.has(word)).length;
+    const union = new Set([...tw, ...cw]).size || 1;
+    const similarity = shared / union;
+    const length = Math.max(0, 8 - Math.abs(target.length - candidate.length) / 25);
+    const sameType = targetType === candidateType ? 16 : 0;
+    return sameType + similarity * 10 + length;
+  };
+
+  const makeDistractors = (fact, allFacts, answer, guideTopic) => {
+    const target = relationData(fact);
+    const targetShort = shortAnswerForFact(fact);
+    const candidates = [];
 
     for (const other of allFacts) {
       if (normalize(other.text) === normalize(fact.text)) continue;
-      const candidate = answerForFact(other);
-      if (!candidate || candidate.length < 18 || isStudyMeta(candidate) || isFragment(candidate)) continue;
-      if (normalize(candidate) === normalize(answer)) continue;
-      if (candidateLeaksCorrectAnswer(candidate, answer)) continue;
 
-      const type = extractRelation(other).type;
-      ranked.push({
-        candidate,
-        score: scoreDistractor(answer, question, candidate, target.type, type, guideTopic)
-      });
+      const candidate = shortAnswerForFact(other);
+      const otherRelation = relationData(other);
+
+      if (!candidate || candidate.length < 18) continue;
+      if (isStudyMeta(candidate) || isFragment(candidate) || isOutline(candidate)) continue;
+      if (normalize(candidate) === normalize(targetShort)) continue;
+      if (candidateLeaksCorrectAnswer(candidate, answer) || candidateLeaksCorrectAnswer(candidate, targetShort)) continue;
+
+      const score =
+        compatibilityScore(targetShort, candidate, target.type, otherRelation.type) +
+        (guideTopic && normalize(other.text).includes(normalize(guideTopic)) ? 5 : 0);
+
+      candidates.push({ candidate, score });
     }
 
-    ranked.sort((a,b) => b.score - a.score);
-    const result = [];
-    for (const item of ranked) {
-      if (result.some(value => normalize(value) === normalize(item.candidate))) continue;
-      if (answerSimilarity(answer, item.candidate) > 0.94) continue;
-      result.push(item.candidate);
-      if (result.length === 3) break;
+    candidates.sort((a,b) => b.score - a.score);
+
+    const picked = [];
+    for (const item of candidates) {
+      if (picked.some(value => normalize(value) === normalize(item.candidate))) continue;
+      if (answerSimilarity(item.candidate, targetShort) > 0.94) continue;
+      picked.push(item.candidate);
+      if (picked.length === 3) break;
     }
-    return result;
+
+    return picked;
   };
 
   const buildQuestion = (fact, allFacts, seed, guideTopic = '') => {
+    const r = relationData(fact);
     const answer = answerForFact(fact);
-    if (!answer || answer.length < 14 || isStudyMeta(answer) || isFragment(answer)) return null;
+    if (!answer || answer.length < 18 || isStudyMeta(answer) || isFragment(answer)) return null;
 
-    const subject = extractRelation(fact).subject || '';
-    const variants = questionForFact(fact);
+    const variants = questionVariants(fact);
     let question = '';
+
     for (let i = 0; i < variants.length; i++) {
       const candidate = variants[(Math.abs(seed) + i) % variants.length];
-      if (candidate && candidate.length >= 40 && !isStudyMeta(candidate) && !questionLeaksAnswer(candidate, answer, subject)) {
+      if (!candidate || isStudyMeta(candidate)) continue;
+      if (r.type === 'prompt' && candidate.trim() === r.prompt.trim()) {
+        question = candidate;
+        break;
+      }
+      if (candidate.length >= 35 && !leaksAnswer(candidate, answer, r.subject)) {
         question = candidate;
         break;
       }
     }
+
     if (!question) return null;
 
-    const distractors = makeDistractors(fact, allFacts, answer, question, guideTopic);
+    const distractors = makeDistractors(fact, allFacts, answer, guideTopic);
     if (distractors.length < 3) return null;
+
+    const alternatives = shuffle(unique([answer, ...distractors]));
+    if (alternatives.length !== 4) return null;
 
     return {
       question,
       answer,
-      alternatives: shuffle(unique([answer, ...distractors])),
+      alternatives,
       sourceFact: fact.text,
       guideTopic,
-      explanation: 'A resposta é sustentada pelo conteúdo do resumo: "' + fact.text + '"'
+      explanation: 'Esta resposta vem diretamente do conteúdo do resumo: "' + fact.text + '"'
     };
   };
 
@@ -546,14 +506,18 @@
 
     const count = Math.min(8, facts.length, Math.max(4, Number(desiredCount) || 6));
     const questions = [];
-    const used = new Set();
+    const usedFacts = new Set();
 
     for (const [i, fact] of shuffle(facts).entries()) {
-      if (questions.length >= count || used.has(normalize(fact.text))) continue;
-      const built = buildQuestion(fact, facts, i * 41 + Math.floor(Math.random() * 1000));
-      if (!built || questions.some(q => normalize(q.question) === normalize(built.question))) continue;
+      if (questions.length >= count) break;
+      if (usedFacts.has(normalize(fact.text))) continue;
+
+      const built = buildQuestion(fact, facts, i * 41 + Math.floor(Math.random() * 2000));
+      if (!built) continue;
+      if (questions.some(q => normalize(q.question) === normalize(built.question))) continue;
+
       questions.push(built);
-      used.add(normalize(fact.text));
+      usedFacts.add(normalize(fact.text));
     }
 
     if (questions.length < Math.min(4, count)) {
@@ -567,45 +531,50 @@
     const facts = splitFacts(summaryText);
     if (facts.length < 4) throw new Error('Não há informações suficientes para montar um quiz confiável.');
 
-    const guideTopics = splitStudyGuide(guideText);
-    if (!guideTopics.length) return generateQuizFromText(summaryText, desiredCount);
+    const topics = splitStudyGuide(guideText);
+    if (!topics.length) return generateQuizFromText(summaryText, desiredCount);
 
     const count = Math.min(8, facts.length, Math.max(4, Number(desiredCount) || 6));
-    const ranked = rankFactsByGuide(facts, guideTopics);
-    const targeted = ranked.filter(x => x.score > 0).map(x => x.fact);
-    const targetQuota = Math.min(targeted.length, Math.max(2, Math.ceil(count * 0.7)));
-
+    const ranked = rankFactsByGuide(facts, topics);
     const selected = [];
-    for (const fact of shuffle(targeted)) {
+
+    const target = ranked.filter(item => item.score > 0).map(item => item.fact);
+    const targetQuota = Math.min(target.length, Math.max(2, Math.ceil(count * 0.7)));
+
+    for (const fact of shuffle(target)) {
       if (selected.length >= targetQuota) break;
       selected.push(fact);
     }
+
     for (const fact of shuffle(facts)) {
       if (selected.length >= count) break;
-      if (!selected.includes(fact)) selected.push(fact);
+      if (!selected.some(x => normalize(x.text) === normalize(fact.text))) selected.push(fact);
+    }
+
+    for (const item of ranked) {
+      if (selected.length >= count) break;
+      if (!selected.some(x => normalize(x.text) === normalize(item.fact.text))) selected.push(item.fact);
     }
 
     const questions = [];
-    const used = new Set();
+    const usedQuestions = new Set();
 
-    for (const [i, fact] of selected.entries()) {
-      if (questions.length >= count || used.has(normalize(fact.text))) continue;
-      const match = scoreFactAgainstGuide(fact, guideTopics);
-      const built = buildQuestion(fact, facts, i * 53 + Math.floor(Math.random() * 2000), match.score > 0 ? match.topic : '');
-      if (!built || questions.some(q => normalize(q.question) === normalize(built.question))) continue;
-      questions.push(built);
-      used.add(normalize(fact.text));
-    }
+    for (let i = 0; i < selected.length && questions.length < count; i++) {
+      const fact = selected[i];
+      const match = scoreGuide(fact, topics);
 
-    // Fill remaining slots with the best-ranked facts instead of falling back prematurely.
-    if (questions.length < count) {
-      for (const item of ranked) {
-        if (questions.length >= count || used.has(normalize(item.fact.text))) continue;
-        const match = item.score > 0 ? item.topic : '';
-        const built = buildQuestion(item.fact, facts, questions.length * 67, match);
-        if (!built || questions.some(q => normalize(q.question) === normalize(built.question))) continue;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const built = buildQuestion(
+          fact,
+          facts,
+          i * 53 + attempt + Math.floor(Math.random() * 2000),
+          match.score > 0 ? match.topic : ''
+        );
+        if (!built) continue;
+        if (usedQuestions.has(normalize(built.question))) continue;
         questions.push(built);
-        used.add(normalize(item.fact.text));
+        usedQuestions.add(normalize(built.question));
+        break;
       }
     }
 
@@ -614,25 +583,59 @@
     return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
   };
 
+  const assemblePdfText = items => {
+    const lines = new Map();
+
+    for (const item of Array.isArray(items) ? items : []) {
+      const value = String(item?.str || '').trim();
+      if (!value) continue;
+      const y = Math.round(Number(item?.transform?.[5] || 0));
+      const x = Number(item?.transform?.[4] || 0);
+      const key = Math.round(y / 2) * 2;
+      if (!lines.has(key)) lines.set(key, []);
+      lines.get(key).push({ value, x, width: Number(item?.width || 0) });
+    }
+
+    return [...lines.entries()]
+      .sort((a,b) => b[0] - a[0])
+      .map(([, row]) => {
+        row.sort((a,b) => a.x - b.x);
+        let line = '';
+        row.forEach((item, index) => {
+          const prev = row[index - 1];
+          const gap = prev ? item.x - (prev.x + prev.width) : Infinity;
+          const glued = prev && prev.value.length === 1 && item.value.length === 1 && gap <= Math.max(2, prev.width * 0.6);
+          line += (index && !glued ? ' ' : '') + item.value;
+        });
+        return line;
+      })
+      .join('\n');
+  };
+
   window.nexaQuizEngine = {
     htmlToText,
     splitFacts,
-    keywords,
-    extractRelation,
-    factParts: extractRelation,
+    relationData,
+    factParts: relationData,
+    sentenceAnswer: answerForFact,
     answerUnit: answerForFact,
-    questionLeaksAnswer,
+    shortAnswerForFact,
+    questionVariants,
+    questionLeaksAnswer: leaksAnswer,
+    leaksAnswer,
     candidateLeaksCorrectAnswer,
     answerSimilarity,
     assemblePdfText,
     splitStudyGuide,
-    scoreFactAgainstGuide,
+    scoreFactAgainstGuide: scoreGuide,
     rankFactsByGuide,
     generateQuizFromText,
     generateHybridQuiz,
     isStudyMeta,
-    isFragment
+    isFragment,
+    isOutline
   };
+})();
 
   if (typeof document === 'undefined') return;
   const $ = selector => document.querySelector(selector);
