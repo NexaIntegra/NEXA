@@ -665,7 +665,7 @@
       const templateIndex = (Math.abs(Number(seed) || 0) + attempt) % templates.length;
       const candidateQuestion = templates[templateIndex](parts);
       if (
-        candidateQuestion.length >= 55 &&
+        candidateQuestion.length >= 45 &&
         !isStudyMeta(candidateQuestion) &&
         !questionLeaksAnswer(candidateQuestion, answer)
       ) {
