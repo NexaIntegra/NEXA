@@ -43,10 +43,18 @@
     const raw = htmlToText(text);
     const pieces = [];
     raw.split(/\n+/).forEach(line => {
-      let clean = line.replace(/^[\s•▪●◦\-–—]+/, '').replace(/^\d+[.)]\s*/, '').trim();
-      if (!clean) return;
-      clean.split(/(?<=[.!?])\s+/).forEach(part => {
-        const fact = part.replace(/\s{2,}/g, ' ').trim();
+      const cleanLine = line
+        .replace(/^[\s•▪●◦\-–—]+/, '')
+        .replace(/^\d+[.)]\s*/, '')
+        .replace(/\bD\.\s+/g, 'D§ ')
+        .trim();
+      if (!cleanLine) return;
+
+      cleanLine.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/).forEach(part => {
+        const fact = part
+          .replace(/D§\s+/g, 'D. ')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
         if (fact.length >= 24 && fact.length <= 500) pieces.push(fact);
       });
     });
@@ -63,8 +71,13 @@
       count.set(key, (count.get(key) || 0) + 1);
       display.set(key, word);
     });
-    return [...count.entries()].sort((a,b) => b[1]-a[1] || b[0].length-a[0].length).slice(0, 50).map(x => display.get(x[0]));
+    return [...count.entries()]
+      .sort((a,b) => b[1]-a[1] || b[0].length-a[0].length)
+      .slice(0, 60)
+      .map(x => display.get(x[0]));
   };
+
+  const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
 
   const shuffle = list => {
     const a = [...list];
@@ -75,7 +88,39 @@
     return a;
   };
 
-  const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
+  const assemblePdfText = items => {
+    const lineMap = new Map();
+    for (const item of Array.isArray(items) ? items : []) {
+      const value = String(item && item.str || '').trim();
+      if (!value) continue;
+      const y = Math.round(Number(item && item.transform && item.transform[5] || 0));
+      const x = Number(item && item.transform && item.transform[4] || 0);
+      const key = Math.round(y / 2) * 2;
+      if (!lineMap.has(key)) lineMap.set(key, []);
+      lineMap.get(key).push({ value, x, width: Number(item && item.width || 0) });
+    }
+
+    return [...lineMap.entries()]
+      .sort((a,b) => b[0] - a[0])
+      .map(entry => {
+        const itemsInLine = entry[1].sort((a,b) => a.x-b.x);
+        let line = '';
+        itemsInLine.forEach((item, idx) => {
+          const prev = itemsInLine[idx - 1];
+          const gap = prev ? item.x - (prev.x + prev.width) : Infinity;
+          const gluedLetters =
+            prev &&
+            prev.value.length === 1 &&
+            item.value.length === 1 &&
+            gap <= Math.max(2, prev.width * 0.6);
+          line += (idx && !gluedLetters ? ' ' : '') + item.value;
+        });
+        return line;
+      })
+      .join('\n');
+  };
+
+
 
   const factParts = fact => {
     const clean = String(fact || '')
@@ -84,33 +129,48 @@
       .replace(/\s{2,}/g, ' ')
       .trim();
 
+    const yearAtStart = clean.match(/^\s*(1[5-9]\d{2}|20\d{2})\b/);
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
     const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
     const year = clean.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/);
+    const change = clean.match(/^(.+?)\s+(mudou|passou de|foi substitu[ií]do por|deixou de)\s+(.+)$/i);
+    const cause = clean.match(/^(.*?)(porque|pois|devido a|por causa de|em razão de)\s+(.+)$/i);
+    const markerList = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido'];
+    const marker = markerList.find(item => normalize(clean).includes(normalize(item)));
 
-    if (arrowParts.length >= 2) {
-      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relation' };
+    if (yearAtStart) {
+      return { subject: yearAtStart[1], detail: clean, relation: 'date', year: yearAtStart[1] };
+    }
+    if (change) {
+      return { subject: change[1].trim(), detail: change[3].trim(), relation: 'change', verb: change[2] };
+    }
+    if (cause) {
+      return { subject: cause[1].trim(), detail: cause[3].trim(), relation: 'cause', connector: cause[2] };
     }
     if (colon > 4 && colon < 140) {
-      return { subject: clean.slice(0, colon).trim(), detail: clean.slice(colon + 1).trim(), relation: 'detail' };
+      const subject = clean.slice(0, colon).trim();
+      const rest = clean.slice(colon + 1).trim();
+      const restArrow = rest.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      if (restArrow.length >= 2) return { subject, detail: restArrow.join(' → '), relation: 'relation' };
+      const restDash = rest.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+      if (restDash.length >= 2) return { subject, detail: restDash.join(' — '), relation: 'explanation' };
+      return { subject, detail: rest, relation: 'detail' };
+    }
+    if (arrowParts.length >= 2) {
+      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relation' };
     }
     if (dashParts.length >= 2) {
       return { subject: dashParts[0], detail: dashParts.slice(1).join(' — '), relation: 'explanation' };
     }
-    const change = clean.match(/^(.+?)\s+(mudou|passou de)\s+(.+)$/i);
-    if (change) {
-      return { subject: change[1].trim(), detail: change[2] + ' ' + change[3].trim(), relation: 'change' };
-    }
-    const markers = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido','ocorreu em','aconteceu em'];
-    const marker = markers.find(item => normalize(clean).includes(normalize(item)));
-    if (marker) {
+    if (marker && clean.length > normalize(marker).length + 5) {
       const idx = normalize(clean).indexOf(normalize(marker));
-      return { subject: clean.slice(0, idx).trim(), detail: clean.slice(idx).trim(), relation: 'consequence' };
+      return { subject: clean.slice(0, idx).replace(/[,:;-]\s*$/, '').trim(), detail: clean.slice(idx).trim(), relation: 'consequence' };
     }
     if (year) {
-      return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date' };
+      return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date', year: year[0] };
     }
+
     const words = clean.split(/\s+/);
     return {
       subject: words.slice(0, Math.min(9, words.length)).join(' '),
@@ -119,42 +179,87 @@
     };
   };
 
-  const makeDetailedQuestion = (fact, facts, keyList) => {
+  const relatedFacts = (fact, facts) => {
     const parts = factParts(fact);
-    const topic = parts.subject || keyList.find(key => normalize(fact).includes(normalize(key))) || 'este ponto';
+    const seedWords = parts.subject
+      .split(/\s+/)
+      .map(w => normalize(w).replace(/[^a-z0-9]/g,''))
+      .filter(w => w.length >= 5 && !stopWords.has(w))
+      .slice(0, 4);
 
-    let question = '';
-    switch (parts.relation) {
-      case 'relation':
-        question = 'Qual alternativa explica corretamente a relação entre "' + parts.subject + '" e "' + parts.detail + '" apresentada no material?';
-        break;
-      case 'detail':
-        question = 'Qual alternativa descreve corretamente "' + parts.subject + '" no contexto estudado, incluindo a função ou característica destacada no resumo?';
-        break;
-      case 'change':
-        question = 'Como ocorreu a mudança em "' + parts.subject + '" e quais elementos ou regiões aparecem relacionados a essa transformação?';
-        break;
-      case 'consequence':
-        question = 'Qual foi a consequência, característica ou resultado associado a "' + (parts.subject || topic) + '" de acordo com o conteúdo estudado?';
-        break;
-      case 'explanation':
-        question = 'Considerando "' + parts.subject + '", qual explicação apresentada no resumo completa corretamente esse ponto do conteúdo?';
-        break;
-      case 'date':
-        question = 'O que aconteceu em ' + parts.subject.replace('o acontecimento de ', '') + ' e qual informação do contexto estudado está associada a essa data?';
-        break;
-      default:
-        question = 'Considerando "' + topic + '" e o contexto apresentado no material, qual afirmação está correta e explica esse ponto do conteúdo?';
-    }
+    return facts
+      .filter(other => normalize(other) !== normalize(fact))
+      .map(other => {
+        const otherNorm = normalize(other);
+        const score = seedWords.reduce((sum, word) => sum + (otherNorm.includes(word) ? 1 : 0), 0);
+        return { other, score };
+      })
+      .filter(item => item.score > 0)
+      .sort((a,b) => b.score - a.score || a.other.length - b.other.length)
+      .map(item => item.other);
+  };
 
-    const related = facts.filter(other => {
-      if (normalize(other) === normalize(fact)) return false;
-      const words = topic.split(/\s+/).filter(word => word.length >= 5).slice(0, 3);
-      return words.length > 0 && words.some(word => normalize(other).includes(normalize(word)));
-    });
+  const shorten = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    if (clean.length <= 180) return clean;
+    return clean.slice(0, 177).replace(/\s+\S*$/, '') + '…';
+  };
+
+  const questionTemplates = {
+    relation: [
+      p => 'No resumo, como "' + p.subject + '" se relaciona com "' + p.detail + '"?',
+      p => 'Qual alternativa descreve corretamente a ligação entre "' + p.subject + '" e "' + p.detail + '" apresentada no conteúdo?',
+      p => 'Ao estudar "' + p.subject + '", qual associação com "' + p.detail + '" aparece no resumo?'
+    ],
+    detail: [
+      p => 'Dentro do tema estudado, qual é a função ou característica de "' + p.subject + '"?',
+      p => 'O que o resumo destaca sobre "' + p.subject + '" e sua importância no conteúdo?',
+      p => 'Qual descrição completa corretamente "' + p.subject + '" conforme explicado no resumo?'
+    ],
+    change: [
+      p => 'Qual transformação o resumo descreve em "' + p.subject + '" e o que mudou nesse processo?',
+      p => 'Como "' + p.subject + '" se transformou, segundo o conteúdo estudado?',
+      p => 'Ao comparar o antes e o depois de "' + p.subject + '", qual mudança é apresentada no resumo?'
+    ],
+    cause: [
+      p => 'Por qual motivo o resumo relaciona "' + p.subject + '" a essa explicação?',
+      p => 'Qual causa apresentada no conteúdo explica o que ocorreu com "' + p.subject + '"?',
+      p => 'Considerando "' + p.subject + '", qual justificativa aparece no resumo para esse acontecimento?'
+    ],
+    consequence: [
+      p => 'A partir de "' + p.subject + '", qual consequência é indicada no resumo?',
+      p => 'Que resultado o conteúdo associa a "' + p.subject + '"?',
+      p => 'Qual efeito ou mudança decorre de "' + p.subject + '" de acordo com o resumo?'
+    ],
+    explanation: [
+      p => 'Considerando "' + p.subject + '", qual explicação completa o ponto apresentado no resumo?',
+      p => 'O que o resumo explica sobre "' + p.subject + '" e a característica que aparece em seguida?',
+      p => 'Qual alternativa reúne corretamente o que é "' + p.subject + '" e como o conteúdo o caracteriza?'
+    ],
+    date: [
+      p => 'Ao citar ' + p.year + ', qual acontecimento o resumo registra e em que contexto ele aparece?',
+      p => 'Qual fato está associado a ' + p.year + ' no conteúdo estudado?',
+      p => 'Por que ' + p.year + ' é uma data importante dentro do tema apresentado?'
+    ],
+    general: [
+      p => 'No trecho que trata de "' + p.subject + '", qual informação completa corretamente a ideia apresentada?',
+      p => 'Qual alternativa explica o papel de "' + p.subject + '" dentro do conteúdo estudado?',
+      p => 'O que o resumo afirma sobre "' + p.subject + '" quando esse ponto é relacionado ao restante do tema?'
+    ]
+  };
+
+  const makeDetailedQuestion = (fact, facts, seed) => {
+    const parts = factParts(fact);
+    const templates = questionTemplates[parts.relation] || questionTemplates.general;
+    const templateIndex = Math.abs(Number(seed) || 0) % templates.length;
+    const question = templates[templateIndex](parts);
+    if (question.length < 70) return null;
+
+    const related = relatedFacts(fact, facts);
     const fallback = facts.filter(other => normalize(other) !== normalize(fact));
-    const pool = related.length >= 3 ? related : fallback;
-    const alternatives = shuffle(unique([fact, ...shuffle(pool).slice(0, 3)])).slice(0, 4);
+    const pool = unique([...related, ...fallback]);
+    const distractors = shuffle(pool).slice(0, 3);
+    const alternatives = shuffle(unique([fact, ...distractors]));
 
     if (alternatives.length !== 4 || !alternatives.some(item => normalize(item) === normalize(fact))) return null;
 
@@ -162,53 +267,56 @@
       question,
       answer: fact,
       alternatives,
-      explanation: 'A resposta está baseada no trecho do resumo que diz: "' + fact + '"'
+      explanation: 'A resposta é sustentada diretamente pelo trecho do resumo: "' + shorten(fact) + '"'
     };
   };
 
   const generateQuizFromText = (text, desiredCount) => {
     const facts = splitFacts(text);
     if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
+
     const count = Math.min(8, Math.max(5, Number(desiredCount) || 6));
-    const keyList = keywords(text);
     const questions = [];
     const used = new Set();
 
-    for (const fact of shuffle(facts)) {
-      if (questions.length >= count) break;
-      if (used.has(normalize(fact))) continue;
-      const q = makeDetailedQuestion(fact, facts, keyList);
+    const relationRank = {
+      relation: 7,
+      change: 6,
+      consequence: 6,
+      cause: 6,
+      detail: 5,
+      explanation: 5,
+      date: 4,
+      general: 2
+    };
+
+    const orderedFacts = shuffle(facts).sort((a,b) => {
+      return (relationRank[factParts(b).relation] || 0) - (relationRank[factParts(a).relation] || 0);
+    });
+
+    for (let i = 0; i < orderedFacts.length && questions.length < count; i++) {
+      const fact = orderedFacts[i];
+      const key = normalize(fact);
+      if (used.has(key)) continue;
+
+      const q = makeDetailedQuestion(fact, facts, i + Math.floor(Math.random() * 100));
       if (!q) continue;
+
       questions.push(q);
-      used.add(normalize(fact));
+      used.add(key);
     }
 
     if (questions.length < 5) throw new Error('Não foi possível montar 5 perguntas confiáveis a partir do resumo.');
     return shuffle(questions).slice(0, count).map((q, i) => ({ id: i + 1, ...q }));
   };
 
-  window.nexaQuizEngine = { htmlToText, splitFacts, keywords, generateQuizFromText };
-
-  if (!window.document) return;
-
-  const $ = selector => document.querySelector(selector);
-  let quiz = [];
-  let index = 0;
-  let score = 0;
-  let locked = false;
-
-  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'
-  }[char]));
-
-  const getFreshSummary = async context => {
-    if (context && context.summary && context.summary.id && window.nexaApi && typeof window.nexaApi.getSummary === 'function') {
-      try {
-        const fresh = await window.nexaApi.getSummary(context.summary.id);
-        if (fresh) return fresh;
-      } catch {}
-    }
-    return context ? context.summary : null;
+  window.nexaQuizEngine = {
+    htmlToText,
+    splitFacts,
+    keywords,
+    factParts,
+    assemblePdfText,
+    generateQuizFromText
   };
 
   const extractPdfText = async pdfUrl => {
@@ -219,20 +327,7 @@
     for (let pageNumber = 1; pageNumber <= pages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
       const data = await page.getTextContent({ normalizeWhitespace: true });
-      const lineMap = new Map();
-      for (const item of data.items) {
-        const value = String(item.str || '').trim();
-        if (!value) continue;
-        const y = Math.round(Number(item.transform && item.transform[5] || 0));
-        const x = Number(item.transform && item.transform[4] || 0);
-        const key = Math.round(y / 2) * 2;
-        if (!lineMap.has(key)) lineMap.set(key, []);
-        lineMap.get(key).push({ value, x, width: Number(item.width || 0) });
-      }
-      const lines = [...lineMap.entries()]
-        .sort((a,b) => b[0] - a[0])
-        .map(entry => entry[1].sort((a,b) => a.x-b.x).map(item => item.value).join(' '));
-      output.push(lines.join('\n'));
+      output.push(assemblePdfText(data.items));
     }
     return output.join('\n');
   };
