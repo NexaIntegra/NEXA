@@ -119,13 +119,16 @@
       }
     }
 
+    const usedTopics = new Set();
     for (const sentence of shuffle(sentences)) {
       if (questions.length >= count) break;
       if (used.has(normalize(sentence))) continue;
+      const topic = keyList.find(key => normalize(sentence).includes(normalize(key)) && !usedTopics.has(normalize(key))) || sentence.split(/\s+/).slice(0, 3).join(' ');
       const alternatives = shuffle(sentences.filter(x => normalize(x) !== normalize(sentence))).slice(0, 5);
       if (alternatives.length >= 3) {
-        questions.push(makeQuestion('Qual alternativa apresenta corretamente uma informação presente no resumo?', sentence, alternatives));
+        questions.push(makeQuestion('Sobre "' + topic + '", qual alternativa está de acordo com o resumo?', sentence, alternatives));
         used.add(normalize(sentence));
+        usedTopics.add(normalize(topic));
       }
     }
 
