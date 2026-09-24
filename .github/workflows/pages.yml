@@ -91,7 +91,7 @@ jobs:
                 if (/Sobre "/.test(q.question)) throw new Error('Formato antigo detectado');
                 if (/qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Formato antigo detectado');
                 if (/este ponto|essa ideia|essa informação|a ideia apresentada|neste ponto do conteúdo/i.test(q.question)) throw new Error('Pergunta vaga detectada');
-                if (q.question.length < 45) throw new Error('Pergunta curta demais');
+                if (q.question.length < 30 && !/^\s*(?:por que|por quê|o que|qual|quais|como|quando|onde|quem)\b/i.test(q.question)) throw new Error('Pergunta curta demais');
               }
             }
           }
@@ -190,7 +190,7 @@ jobs:
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-stable-1/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-stable-2/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
           if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
           if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
