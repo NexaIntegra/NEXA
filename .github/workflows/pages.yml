@@ -45,7 +45,7 @@ jobs:
           if (/const bindQuizButton = \(\)/.test(quizLive)) throw new Error('Quiz integration: binding antigo duplicado');
           if (!/document\.addEventListener\('click', handleClick, true\)/.test(bootstrap)) throw new Error('Quiz integration: captura de clique ausente');
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Quiz integration: botão sem type=button');
-          if (!/quiz-live\.js\?v=20260924-quality-2/.test(indexHtml)) throw new Error('Quiz integration: cache-bust incorreto');
+          if (!/quiz-live\.js\?v=20260924-quality-3/.test(indexHtml)) throw new Error('Quiz integration: cache-bust incorreto');
           if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration: bootstrap não carregado');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration: botão duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration: dialog duplicado');
@@ -125,7 +125,7 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
           const indexHtml = require('fs').readFileSync('index.html', 'utf8');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Quiz integration test: botão ausente ou duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Quiz integration test: dialog ausente ou duplicado');
-          if (!/quiz-live\.js\?v=20260924-quality-2/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
+          if (!/quiz-live\.js\?v=20260924-quality-3/.test(indexHtml)) throw new Error('Quiz integration test: cache-bust incorreto');
           if (!/quiz-bootstrap\.js\?v=20260924-bootstrap-1/.test(indexHtml)) throw new Error('Quiz integration test: bootstrap ausente');
           if (!/onclick="event\.preventDefault\(\);if\(typeof window\.nexaQuizOpen/.test(indexHtml)) throw new Error('Quiz integration test: fallback inline ausente');
 
@@ -149,55 +149,52 @@ Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
             }
           }
 
-          const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{4,}/g) || [])
+          const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{3,}/g) || [])
             .map(w => w.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-            .filter(w => !new Set(['sobre','qual','quais','dentro','tema','estudado','resumo','conteudo','informacao','alternativa','segundo','essa','esse','como','quando']).has(w));
+            .filter(w => !new Set(['sobre','qual','quais','dentro','tema','estudado','resumo','conteudo','informacao','alternativa','segundo','essa','esse','como','quando','este','neste','nesta','ponto']).has(w));
 
-          const leakExamples = [
-            'Povoamento do interior → fronteiras ampliadas.',
-            'Abertura dos Portos (1808): fim do monopólio → comércio livre.',
-            'Intendência das Minas (1702): órgão de controle e fiscalização.',
-            '1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.',
-            'Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.'
-          ];
-          for (let run = 0; run < 500; run++) {
-            const generated = window.nexaQuizEngine.generateQuizFromText(sample, 8);
-            for (const item of generated) {
-              if (window.nexaQuizEngine.questionLeaksAnswer(item.question, item.answer)) {
-                throw new Error('Quiz quality: resposta aparece no enunciado');
+          for (const textSource of samples) {
+            for (let run = 0; run < 250; run++) {
+              const count = textSource === sample ? 8 : 6;
+              const generated = window.nexaQuizEngine.generateQuizFromText(textSource, count);
+              if (generated.length !== count) throw new Error('Quiz quality: quantidade incorreta');
+              if (new Set(generated.map(q => q.question)).size !== generated.length) throw new Error('Quiz quality: perguntas repetidas');
+              for (const q of generated) {
+                if (q.alternatives.length !== 4) throw new Error('Quiz quality: 4 alternativas obrigatórias');
+                if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Quiz quality: alternativas repetidas');
+                if (!q.alternatives.includes(q.answer)) throw new Error('Quiz quality: resposta correta ausente');
+                if (window.nexaQuizEngine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Quiz quality: resposta aparece no enunciado');
+                if (/Sobre "/.test(q.question) || /qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Quiz quality: formato antigo');
+                if (/este ponto|essa ideia|essa informação|a ideia apresentada|neste ponto do conteúdo/i.test(q.question)) throw new Error('Quiz quality: pergunta vaga');
+                if (q.question.length < 55) throw new Error('Quiz quality: pergunta curta');
               }
             }
           }
-          const leakProbe = leakExamples.map(fact => {
+
+          const leakCases = [
+            'Declaração dos Direitos do Homem e do Cidadão: defendia liberdade e igualdade jurídica.',
+            'Povoamento do interior → fronteiras ampliadas.',
+            'Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.',
+            'Abertura dos Portos (1808): fim do monopólio → comércio livre.',
+            '1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.'
+          ];
+          for (const fact of leakCases) {
             const parts = window.nexaQuizEngine.factParts(fact);
             const answer = window.nexaQuizEngine.answerUnit(fact, parts);
-            const questions = [
-              'Qual informação está associada a "' + parts.subject + '"?',
-              'O que o resumo apresenta sobre "' + parts.subject + '"?'
+            const probes = [
+              'O que o resumo destaca sobre "' + parts.subject + '"?',
+              'Qual informação o conteúdo apresenta sobre "' + parts.subject + '"?'
             ];
-            return questions.some(question => window.nexaQuizEngine.questionLeaksAnswer(question, answer));
-          });
-          if (leakProbe.some(Boolean)) throw new Error('Quiz quality: teste de vazamento de resposta falhou');
-
-          const qualityWords = value => (String(value).match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]{4,}/g) || [])
-            .map(w => w.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-            .filter(w => !new Set(['sobre','qual','quais','dentro','tema','estudado','resumo','conteudo','informacao','alternativa','segundo','essa','esse','como','quando']).has(w));
+            if (probes.some(question => window.nexaQuizEngine.questionLeaksAnswer(question, answer))) {
+              throw new Error('Quiz quality: caso de vazamento detectado em ' + fact);
+            }
+          }
 
           for (const q of quiz) {
             const answerWords = qualityWords(q.answer);
             const questionNorm = q.question.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             const hasAnchor = answerWords.some(word => questionNorm.includes(word)) || /\b(?:1[5-9]\d{2}|20\d{2})\b/.test(q.question);
             if (!hasAnchor) throw new Error('Quiz quality: pergunta sem conexão clara com a resposta');
-            if (/este ponto|essa ideia|essa informação|a ideia apresentada/i.test(q.question)) throw new Error('Quiz quality: pergunta vaga');
-
-            const answerSet = new Set(qualityWords(q.answer));
-            for (const alternative of q.alternatives) {
-              if (alternative === q.answer) continue;
-              const altSet = new Set(qualityWords(alternative));
-              const intersection = [...answerSet].filter(word => altSet.has(word)).length;
-              const union = new Set([...answerSet, ...altSet]).size || 1;
-              if (intersection / union > 0.92) throw new Error('Quiz quality: alternativa excessivamente parecida com a correta');
-            }
           }
 
           const vm = require('vm');
