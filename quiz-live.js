@@ -465,6 +465,8 @@
     return original;
   };
 
+  const answerUnit = naturalizeAnswer;
+
   const cleanAnswer = value => {
     let clean = String(value || '')
       .replace(/^\s*[•▪●◦\-–—]+/, '')
