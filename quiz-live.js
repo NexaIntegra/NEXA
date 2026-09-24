@@ -304,7 +304,7 @@
         return cleanAnswer(p.detail || p.answer || '');
 
       case 'change':
-        return cleanAnswer('Mudou ' + (p.detail || p.answer || '').replace(/^mudou\s+/i, ''));
+        return cleanAnswer('Mudou ' + (p.detail || p.answer || '').replace(/^mudou\s+/i, '').replace(/^do\s+/i, 'do '));
 
       case 'cause':
         return cleanAnswer(p.detail || p.answer || '');
@@ -340,74 +340,155 @@
     }
   };
 
+  const questionSubject = fact => {
+    const p = extractRelation(fact);
+    const raw = String(p.subject || '').trim();
+
+    if (p.type === 'prompt') return raw;
+    if (p.type === 'date') return raw.replace(/\s+[→⇒].*$/,'').trim();
+
+    return raw
+      .replace(/\s*:\s*.*$/,'')
+      .replace(/\s+[→⇒].*$/,'')
+      .replace(/[.]$/,'')
+      .trim();
+  };
+
   const questionForFact = fact => {
     const p = extractRelation(fact);
     if (p.type === 'prompt') return [p.prompt];
 
+    const subject = questionSubject(fact);
+    const target = normalize(p.detail || p.answer || '');
+
     switch (p.type) {
       case 'sequence':
         return [
-          'Qual sequência de acontecimentos o conteúdo apresenta a partir de "' + p.subject + '"?',
-          'Como os acontecimentos ligados a "' + p.subject + '" se encadeiam?'
+          'Qual sequência de acontecimentos é apresentada a partir de "' + subject + '"?',
+          'Como os acontecimentos ligados a "' + subject + '" se encadeiam?'
         ];
+
       case 'relation':
+        if (/comercio/.test(target)) {
+          return [
+            'Que mudança no comércio ocorreu após "' + subject + '"?',
+            'Qual resultado o conteúdo apresenta para o comércio após "' + subject + '"?'
+          ];
+        }
+        if (/fronteiras?/.test(target)) {
+          return [
+            'Que consequência territorial aparece após "' + subject + '"?',
+            'Como o povoamento de "' + subject + '" afetou o território?'
+          ];
+        }
+        if (/vida urbana|vilas|cidades/.test(target)) {
+          return [
+            'Que transformação urbana aparece após "' + subject + '"?',
+            'O que mudou nas áreas urbanas com "' + subject + '"?'
+          ];
+        }
+        if (/mercado interno|mercado/.test(target)) {
+          return [
+            'Que consequência econômica está associada a "' + subject + '"?',
+            'Como "' + subject + '" contribuiu para a economia interna?'
+          ];
+        }
         return [
-          'Qual resultado o conteúdo associa a "' + p.subject + '"?',
-          'O que acontece a partir de "' + p.subject + '" segundo o conteúdo?'
+          'Qual resultado o conteúdo associa a "' + subject + '"?',
+          'O que ocorre a partir de "' + subject + '" segundo o conteúdo?'
         ];
+
       case 'change':
         return [
-          'Que transformação ocorreu em "' + p.subject + '"?',
-          'Como "' + p.subject + '" mudou no processo estudado?'
+          'Qual transformação ocorreu em "' + subject + '"?',
+          'Como "' + subject + '" mudou no processo estudado?'
         ];
+
       case 'cause':
         return [
-          'Qual motivo explica "' + p.subject + '" segundo o conteúdo?',
-          'O que explica o acontecimento envolvendo "' + p.subject + '"?'
+          'Qual motivo explica o que ocorreu com "' + subject + '"?',
+          'Que causa o conteúdo apresenta para "' + subject + '"?'
         ];
+
       case 'consequence':
         return [
-          'Qual foi o principal efeito de "' + p.subject + '"?',
-          'O que "' + p.subject + '" provocou no contexto estudado?'
+          'Qual foi o principal efeito de "' + subject + '"?',
+          'Que consequência o conteúdo apresenta para "' + subject + '"?'
         ];
+
       case 'location':
         return [
-          'Onde "' + p.subject + '" ocorre segundo o conteúdo?',
-          'Em qual local ou estrutura "' + p.subject + '" acontece?'
+          'Onde ocorre "' + subject + '" segundo o conteúdo?',
+          'Em qual local ou estrutura "' + subject + '" acontece?'
         ];
+
       case 'activity':
+        if (/absorve/.test(normalize(p.verb))) {
+          return [
+            'Qual função "' + subject + '" desempenha no processo?',
+            'O que "' + subject + '" faz durante o processo estudado?'
+          ];
+        }
+        if (/entra/.test(normalize(p.verb))) {
+          return [
+            'O que acontece com "' + subject + '" durante o processo?',
+            'Como "' + subject + '" participa do processo descrito?'
+          ];
+        }
+        if (/libera/.test(normalize(p.verb))) {
+          return [
+            'O que acontece com "' + subject + '" ao final do processo?',
+            'Para onde "' + subject + '" é liberado segundo o conteúdo?'
+          ];
+        }
+        if (/transporta|absorvida/.test(normalize(p.verb))) {
+          return [
+            'Como "' + subject + '" é transportado ou absorvido no processo?',
+            'Que papel "' + subject + '" desempenha nesse transporte?'
+          ];
+        }
+        if (/contribui|produz/.test(normalize(p.verb))) {
+          return [
+            'Qual papel "' + subject + '" desempenha no contexto estudado?',
+            'Que função "' + subject + '" exerce no processo apresentado?'
+          ];
+        }
         return [
-          'Qual ação ou função o conteúdo atribui a "' + p.subject + '"?',
-          'Que papel "' + p.subject + '" desempenha no processo estudado?'
+          'Que informação específica o conteúdo apresenta sobre "' + subject + '"?',
+          'Como "' + subject + '" atua no processo estudado?'
         ];
+
       case 'definition':
         return [
-          'Como "' + p.subject + '" é definido no conteúdo?',
-          'Que característica explica o significado de "' + p.subject + '"?'
+          'Como "' + subject + '" é definido no conteúdo?',
+          'Que característica explica o significado de "' + subject + '"?'
         ];
+
       case 'detail':
         if (/%/.test(p.detail || '')) return [
-          'Qual valor está associado a "' + p.subject + '" e o que ele representa?'
+          'Qual valor está associado a "' + subject + '" e o que ele representa?'
         ];
         if (/órgão|controle|fiscalização|função/i.test(p.detail || '')) return [
-          'Qual era a função de "' + p.subject + '" no período estudado?'
+          'Qual era a função de "' + subject + '" no período estudado?'
         ];
         if (/proibido|proibia/i.test(p.detail || '')) return [
-          'O que era proibido em relação a "' + p.subject + '"?'
+          'O que era proibido em relação a "' + subject + '"?'
         ];
         return [
-          'Que informação específica caracteriza "' + p.subject + '"?',
-          'Que detalhe do conteúdo ajuda a explicar "' + p.subject + '"?'
+          'Que característica específica define "' + subject + '"?',
+          'Que detalhe do conteúdo ajuda a explicar "' + subject + '"?'
         ];
+
       case 'date':
         return [
           'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
           'Qual acontecimento importante está associado a ' + p.year + '?'
         ];
+
       default:
         return [
-          'Que informação específica o conteúdo apresenta sobre "' + p.subject + '"?',
-          'Como "' + p.subject + '" é apresentado no contexto estudado?'
+          'Que informação específica o conteúdo apresenta sobre "' + subject + '"?',
+          'Como "' + subject + '" é apresentado no contexto estudado?'
         ];
     }
   };
