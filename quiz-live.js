@@ -463,8 +463,9 @@
 
   const buildQuestion = (fact, allFacts, seed, guideTopic = '') => {
     const r = relationData(fact);
-    const answer = answerForFact(fact);
-    if (!answer || answer.length < 18 || isStudyMeta(answer) || isFragment(answer)) return null;
+    // Usa o alvo da informação como resposta; a frase completa fica apenas na explicação.
+    const answer = shortAnswerForFact(fact);
+    if (!answer || answer.length < 14 || isStudyMeta(answer) || isFragment(answer)) return null;
 
     const variants = questionVariants(fact);
     let question = '';
