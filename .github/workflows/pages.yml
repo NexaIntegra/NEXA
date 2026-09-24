@@ -63,7 +63,34 @@ jobs:
           if (!/Pedro I foi imperador do Brasil/.test(pdfText)) throw new Error('PDF test: texto com letras separadas não foi reconstruído');
           if (!pdfText.includes('\n')) throw new Error('PDF test: quebras de linha perdidas');
 
-          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas');
+          const sample = `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
+Povoamento do interior → fronteiras ampliadas.
+Surgimento de vilas e cidades → vida urbana nova.
+Tropeiros ligavam regiões → formação de mercado interno.
+Intendência das Minas (1702): órgão de controle e fiscalização.
+Quinto: 20% de todo ouro pertencia ao Rei.
+Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.
+Abertura dos Portos (1808): fim do monopólio → comércio livre.
+Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.
+1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.
+1821: D. João volta; D. Pedro fica no Brasil.
+Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
+7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`;
+          for (let run = 0; run < 1000; run++) {
+            const generated = window.nexaQuizEngine.generateQuizFromText(sample, 8);
+            if (generated.length !== 8) throw new Error('Quiz test: quantidade incorreta na execução ' + run);
+            if (new Set(generated.map(q => q.question)).size !== generated.length) throw new Error('Quiz test: perguntas repetidas na execução ' + run);
+            for (const q of generated) {
+              if (q.alternatives.length !== 4) throw new Error('Quiz test: questão sem 4 alternativas');
+              if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Quiz test: alternativas repetidas');
+              if (!q.alternatives.includes(q.answer)) throw new Error('Quiz test: resposta correta ausente');
+              if (q.question.length < 70) throw new Error('Quiz test: pergunta pouco detalhada');
+              if (/Sobre "/.test(q.question) || /qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Quiz test: padrão antigo detectado');
+              if (!q.explanation.includes('trecho do resumo')) throw new Error('Quiz test: explicação ausente');
+            }
+          }
+
+          console.log('Quiz smoke tests OK:', quiz.length, 'perguntas + 1000 gerações');
           NODE
 
       - name: Setup Pages
