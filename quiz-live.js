@@ -386,69 +386,109 @@
     return clean.slice(0, 177).replace(/\s+\S*$/, '') + '…';
   };
 
-  const answerUnit = (fact, parts) => {
+  const naturalizeAnswer = (fact, parts) => {
     const original = ensureSentence(fact);
     const detail = ensureSentence(parts.detail || '');
 
-    if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 3) {
-      return ensureSentence('A sequência apresentada no resumo é: ' + parts.sequence.join(' → '));
+    if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 2) {
+      return ensureSentence('A sequência apresentada foi: ' + parts.sequence.join(' → '));
     }
 
-    if (['relation','detail','change','cause','consequence','explanation','date'].includes(parts.relation) && detail.length >= 14) {
+    if (parts.relation === 'relation') {
+      const bits = String(parts.detail || '').split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      if (bits.length >= 2) {
+        return ensureSentence(bits[0].replace(/[.]$/, '') + ' levou a ' + bits.slice(1).join(' e '));
+      }
+    }
+
+    if (parts.relation === 'explanation') {
+      const bits = String(parts.detail || '').split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+      if (bits.length >= 2) {
+        return ensureSentence(bits[0].replace(/[.]$/, '') + ', e ' + bits.slice(1).join(', e '));
+      }
+    }
+
+    if (parts.relation === 'date') {
+      let body = String(parts.detail || fact || '').trim();
+      body = body.replace(/^\s*[^:]+:\s*/, '');
+      const arrow = body.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      if (arrow.length >= 2) {
+        body = arrow[0].replace(/[.]$/, '') + ' e ' + arrow.slice(1).join(' e ');
+      } else {
+        body = body.replace(/\s*=\s*/g, ' passou a ser ');
+      }
+      body = body.replace(/^Independência\s*:\s*/i, 'a Independência ocorreu com ');
+      return ensureSentence(body);
+    }
+
+    if (['detail','change','cause','consequence','general'].includes(parts.relation) && detail.length >= 14) {
       return detail;
     }
 
     return original;
   };
 
+  const cleanAnswer = value => {
+    let clean = ensureSentence(value)
+      .replace(/^\s*[•▪●◦\-–—]+/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (!clean) return '';
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    return clean;
+  };
+
   const questionTemplates = {
     sequence: [
-      p => 'Qual sequência de acontecimentos é apresentada no resumo a partir de "' + p.subject + '"?',
-      p => 'Ao tratar de "' + p.subject + '", qual sequência aparece no conteúdo?',
-      p => 'Que acontecimentos aparecem em sequência depois de "' + p.subject + '"?'
+      p => 'Qual sequência resume os acontecimentos apresentados a partir de "' + p.subject + '"?',
+      p => 'Ao analisar "' + p.subject + '", qual sequência de acontecimentos aparece no conteúdo?',
+      p => 'Qual cadeia de acontecimentos é descrita no resumo começando por "' + p.subject + '"?'
     ],
     relation: [
-      p => 'Que consequência o resumo apresenta para "' + p.subject + '"?',
-      p => 'O que aconteceu a partir de "' + p.subject + '" segundo o conteúdo?',
-      p => 'Que resultado aparece depois de "' + p.subject + '" no resumo?'
+      p => 'O que aconteceu a partir de "' + p.subject + '"?',
+      p => 'Que mudança no processo está diretamente ligada a "' + p.subject + '"?',
+      p => 'Qual resultado aparece associado a "' + p.subject + '" no conteúdo estudado?'
     ],
     detail: [
-      p => p.detail && /%/.test(p.detail) ? 'Qual porcentagem ou valor o resumo associa a "' + p.subject + '" e o que esse valor representa?' :
-        p.detail && /órgão|controle|função|fiscalização/i.test(p.detail) ? 'Qual era a função de "' + p.subject + '" segundo o resumo?' :
-        p.detail && /proibido|proibia/i.test(p.detail) ? 'O que era proibido em relação a "' + p.subject + '"?' :
-        'Que informação específica o resumo apresenta sobre "' + p.subject + '"?',
-      p => 'Como "' + p.subject + '" é descrito no conteúdo estudado?',
-      p => 'Qual característica de "' + p.subject + '" aparece no resumo?'
+      p => p.detail && /%/.test(p.detail)
+        ? 'Qual valor está associado a "' + p.subject + '" e o que ele representa?'
+        : p.detail && /órgão|controle|função|fiscalização/i.test(p.detail)
+          ? 'Qual era a função de "' + p.subject + '" no período estudado?'
+          : p.detail && /proibido|proibia/i.test(p.detail)
+            ? 'O que era proibido em relação a "' + p.subject + '"?'
+            : 'Qual característica ou informação define "' + p.subject + '" nesse contexto?',
+      p => 'Como "' + p.subject + '" é caracterizado no conteúdo?',
+      p => 'Que informação específica ajuda a explicar "' + p.subject + '"?'
     ],
     change: [
-      p => 'Que mudança ocorreu em "' + p.subject + '" segundo o resumo?',
-      p => 'Como o conteúdo descreve a transformação de "' + p.subject + '"?',
-      p => 'O que mudou em "' + p.subject + '" de acordo com o resumo?'
+      p => 'Como "' + p.subject + '" mudou segundo o conteúdo estudado?',
+      p => 'Qual transformação é descrita em "' + p.subject + '"?',
+      p => 'O que mudou em "' + p.subject + '" ao longo do processo apresentado?'
     ],
     cause: [
-      p => 'Que explicação o resumo apresenta para o que ocorreu com "' + p.subject + '"?',
-      p => 'Segundo o conteúdo, o que explica "' + p.subject + '"?',
-      p => 'Qual motivo é apresentado no resumo para "' + p.subject + '"?'
+      p => 'Que explicação o conteúdo apresenta para o que ocorreu com "' + p.subject + '"?',
+      p => 'Qual motivo ajuda a explicar "' + p.subject + '" segundo o resumo?',
+      p => 'O que explica o acontecimento envolvendo "' + p.subject + '"?'
     ],
     consequence: [
-      p => 'Qual consequência o resumo atribui a "' + p.subject + '"?',
-      p => 'Que resultado aparece como consequência de "' + p.subject + '"?',
-      p => 'O que ocorreu como consequência de "' + p.subject + '" segundo o conteúdo?'
+      p => 'Qual foi a consequência de "' + p.subject + '"?',
+      p => 'O que "' + p.subject + '" provocou segundo o conteúdo?',
+      p => 'Que efeito aparece associado a "' + p.subject + '"?'
     ],
     explanation: [
-      p => 'Como o resumo caracteriza "' + p.subject + '"?',
-      p => 'Que explicação o conteúdo apresenta para "' + p.subject + '"?',
-      p => 'Qual característica ou explicação é dada para "' + p.subject + '" no resumo?'
+      p => 'Como "' + p.subject + '" funcionava ou era caracterizado?',
+      p => 'Que explicação do conteúdo ajuda a entender "' + p.subject + '"?',
+      p => 'Qual característica explica o papel de "' + p.subject + '"?'
     ],
     date: [
-      p => 'Que acontecimento o resumo registra em ' + p.year + ' dentro do tema estudado?',
-      p => 'Qual acontecimento importante o conteúdo situa em ' + p.year + ' e como ele aparece no resumo?',
-      p => 'Que fato do tema estudado está associado a ' + p.year + ' segundo o conteúdo?'
+      p => 'O que aconteceu em ' + p.year + ' segundo o conteúdo?',
+      p => 'Qual acontecimento importante está associado a ' + p.year + '?',
+      p => 'Que fato do tema é localizado em ' + p.year + '?'
     ],
     general: [
-      p => 'O que o resumo afirma sobre "' + p.subject + '"?',
-      p => 'Como "' + p.subject + '" é explicado no resumo?',
-      p => 'Que informação importante o conteúdo apresenta sobre "' + p.subject + '"?'
+      p => 'O que caracteriza "' + p.subject + '" no contexto estudado?',
+      p => 'Que informação explica melhor "' + p.subject + '"?',
+      p => 'Qual aspecto de "' + p.subject + '" é destacado no conteúdo?'
     ]
   };
 
@@ -479,57 +519,110 @@
     return intersection / union;
   };
 
-  const makeDetailedQuestion = (fact, facts, seed) => {
+  const makeNearMiss = (fact, parts, otherFact) => {
+    const otherParts = factParts(otherFact);
+    if (normalize(otherFact) === normalize(fact)) return '';
+
+    const targetSubject = cleanAnswer(parts.subject || '');
+    const otherDetail = cleanAnswer(otherParts.detail || naturalizeAnswer(otherFact, otherParts));
+
+    if (!targetSubject || !otherDetail) return '';
+
+    if (parts.relation === 'sequence' && otherParts.relation === 'sequence' && otherParts.sequence?.length >= 3) {
+      return cleanAnswer('A sequência apresentada foi: ' + [parts.sequence[0], ...otherParts.sequence.slice(1)].join(' → '));
+    }
+
+    if (parts.relation === 'relation' && otherParts.detail) {
+      const bits = otherParts.detail.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      if (bits.length >= 2) return cleanAnswer(bits[0] + ' levou a ' + bits.slice(1).join(' e '));
+    }
+
+    if (parts.relation === 'date' && otherParts.relation === 'date') {
+      const body = cleanAnswer(naturalizeAnswer(otherFact, otherParts)).replace(/^Em\s+\d{4}[,:-]?\s*/i, '');
+      if (body) return cleanAnswer('Em ' + parts.year + ', ' + body);
+    }
+
+    if (parts.relation === 'consequence' && otherParts.relation === 'consequence') {
+      const otherSentence = cleanAnswer(naturalizeAnswer(otherFact, otherParts));
+      const verbPhrase = otherSentence.replace(/^[^.!?]+?\s+(?:e\s+)?/i, '').trim();
+      if (verbPhrase) return cleanAnswer(targetSubject + ' ' + verbPhrase);
+    }
+
+    if (parts.relation === 'change' && otherParts.relation === 'change') {
+      return cleanAnswer(targetSubject + ' ' + String(otherParts.detail || '').trim());
+    }
+
+    if (parts.relation === 'detail' || parts.relation === 'explanation' || parts.relation === 'general') {
+      return cleanAnswer(targetSubject + ': ' + otherDetail);
+    }
+
+    return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
+  };
+
+  const scoreDistractor = (answer, question, candidate) => {
+    const similarity = answerSimilarity(answer, candidate);
+    const lengthDelta = Math.abs(answer.length - candidate.length);
+    const wordOverlap = [...new Set(meaningfulWords(candidate))].filter(word => normalize(question).includes(word)).length;
+    return similarity * 10 + Math.max(0, 8 - lengthDelta / 25) + wordOverlap * 0.2;
+  };
+
+  const makeDetailedQuestion = (fact, facts, seed, preferredFacts = facts) => {
     const parts = factParts(fact);
-    const answer = answerUnit(fact, parts);
+    const answer = cleanAnswer(naturalizeAnswer(fact, parts));
     const templates = questionTemplates[parts.relation] || questionTemplates.general;
 
     let question = '';
     for (let attempt = 0; attempt < templates.length; attempt++) {
       const templateIndex = (Math.abs(Number(seed) || 0) + attempt) % templates.length;
-      const candidate = templates[templateIndex](parts);
+      const candidateQuestion = templates[templateIndex](parts);
       if (
-        candidate.length >= 55 &&
-        !isStudyMeta(candidate) &&
-        !questionLeaksAnswer(candidate, answer)
+        candidateQuestion.length >= 55 &&
+        !isStudyMeta(candidateQuestion) &&
+        !questionLeaksAnswer(candidateQuestion, answer)
       ) {
-        question = candidate;
+        question = candidateQuestion;
         break;
       }
     }
 
-    if (!question) return null;
+    if (!question || !answer || isFragment(answer)) return null;
 
-    const fallback = facts.filter(other => normalize(other) !== normalize(fact));
-    const candidates = shuffle(fallback)
-      .map(other => ({ fact: other, answer: answerUnit(other, factParts(other)) }))
-      .filter(item => item.answer && normalize(item.answer) !== normalize(answer))
-      .filter(item => !isStudyMeta(item.answer))
-      .filter(item => !isFragment(item.answer))
-      .filter(item => answerSimilarity(answer, item.answer) < 0.96);
+    const pool = unique([...preferredFacts, ...facts])
+      .filter(other => normalize(other) !== normalize(fact))
+      .map(other => {
+        const otherParts = factParts(other);
+        const otherAnswer = cleanAnswer(naturalizeAnswer(other, otherParts));
+        const nearMiss = makeNearMiss(fact, parts, other);
+        const candidate = cleanAnswer(nearMiss || otherAnswer);
+        return { other, candidate, similarity: scoreDistractor(answer, question, candidate) };
+      })
+      .filter(item => item.candidate)
+      .filter(item => !isStudyMeta(item.candidate))
+      .filter(item => !isFragment(item.candidate))
+      .filter(item => normalize(item.candidate) !== normalize(answer))
+      .filter(item => !questionLeaksAnswer(question, item.candidate))
+      .sort((a,b) => b.similarity - a.similarity);
 
     const distinct = [];
-    for (const item of candidates) {
-      if (distinct.some(existing => normalize(existing.answer) === normalize(item.answer))) continue;
+    for (const item of pool) {
+      if (distinct.some(existing => normalize(existing) === normalize(item.candidate))) continue;
+      // Evita que todos os distratores sejam praticamente iguais à correta.
+      if (answerSimilarity(answer, item.candidate) > 0.94) continue;
       distinct.push(item);
       if (distinct.length === 3) break;
     }
 
-    // Fallback seguro: quando o resumo tem poucos fatos ou respostas muito parecidas,
-    // usa fatos completos que ainda não foram escolhidos.
+    // Complete a cota usando respostas integrais do próprio resumo.
     if (distinct.length < 3) {
-      for (const factOption of shuffle(facts)) {
-        if (normalize(factOption) === normalize(fact)) continue;
-        const fallbackAnswer = answerUnit(factOption, factParts(factOption));
-        if (!fallbackAnswer || isFragment(fallbackAnswer)) continue;
-        if (normalize(fallbackAnswer) === normalize(answer)) continue;
-        if (distinct.some(existing => normalize(existing.answer) === normalize(fallbackAnswer))) continue;
-        distinct.push({ fact: factOption, answer: fallbackAnswer });
+      for (const item of pool) {
+        if (distinct.some(existing => normalize(existing) === normalize(item.candidate))) continue;
+        if (answerSimilarity(answer, item.candidate) > 0.97) continue;
+        distinct.push(item);
         if (distinct.length === 3) break;
       }
     }
 
-    const alternatives = shuffle(unique([answer, ...distinct.map(item => item.answer)]));
+    const alternatives = shuffle(unique([answer, ...distinct.map(item => item.candidate)]));
     if (alternatives.length !== 4) return null;
 
     return {
@@ -641,17 +734,22 @@
       if (usedFacts.has(factKey)) continue;
 
       for (let attempt = 0; attempt < 18; attempt++) {
+        const guideMatch = scoreFactAgainstGuide(fact, guideTopics);
+        const preferredFacts = ranked
+          .filter(item => guideMatch.topic && item.topic === guideMatch.topic)
+          .map(item => item.fact);
+
         const q = makeDetailedQuestion(
           fact,
           facts,
-          i * 31 + attempt + Math.floor(Math.random() * 3000)
+          i * 31 + attempt + Math.floor(Math.random() * 3000),
+          preferredFacts.length ? preferredFacts : facts
         );
         if (!q) continue;
 
         const questionKey = normalize(q.question);
         if (usedQuestions.has(questionKey)) continue;
 
-        const guideMatch = scoreFactAgainstGuide(fact, guideTopics);
         q.guideTopic = guideMatch.score > 0 ? guideMatch.topic : '';
         questions.push(q);
         usedQuestions.add(questionKey);
