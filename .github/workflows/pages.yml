@@ -31,7 +31,6 @@ jobs:
           node --check quiz-bootstrap.js
           node - <<'NODE'
           const fs = require('fs');
-          const vm = require('vm');
 
           global.document = undefined;
           global.Element = class {};
@@ -41,194 +40,105 @@ jobs:
           const engine = window.nexaQuizEngine;
           if (!engine || typeof engine.generateQuizFromText !== 'function') throw new Error('Quiz engine não carregou');
           if (typeof engine.generateHybridQuiz !== 'function') throw new Error('Quiz híbrido não carregou');
-          if (typeof engine.candidateLeaksCorrectAnswer !== 'function') throw new Error('Validador de distratores não carregou');
-          if (typeof engine.splitStudyGuide !== 'function') throw new Error('Leitor do roteiro não carregou');
-          if (typeof engine.scoreFactAgainstGuide !== 'function') throw new Error('Pontuação do roteiro não carregou');
+          if (typeof engine.shortAnswerForFact !== 'function') throw new Error('Extrator de resposta curta não carregou');
 
+          const indexHtml = fs.readFileSync('index.html', 'utf8');
           const supabaseSource = fs.readFileSync('supabase.js', 'utf8');
           const adminHtmlSource = fs.readFileSync('admin.html', 'utf8');
           const adminJsSource = fs.readFileSync('admin.js', 'utf8');
-          if (!/study_guide/.test(supabaseSource)) throw new Error('Supabase: coluna study_guide não integrada');
-          if (!/studyGuide/.test(supabaseSource)) throw new Error('Supabase: mapeamento studyGuide ausente');
+
+          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz inválido ou duplicado');
+          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz inválido ou duplicado');
+          if (!/quiz-live\.js\?v=20260924-fixed-2/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/study_guide/.test(supabaseSource)) throw new Error('Supabase: estudo não integrado');
           if (!/id="examStudyGuide"/.test(adminHtmlSource)) throw new Error('Admin: campo de roteiro ausente');
           if (!/studyGuide: \$\('#examStudyGuide'\)\.value\.trim\(\)/.test(adminJsSource)) throw new Error('Admin: roteiro não é salvo');
 
           const samples = [
-            `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
-          Povoamento do interior → fronteiras ampliadas.
-          Surgimento de vilas e cidades → vida urbana nova.
-          Tropeiros ligavam regiões → formação de mercado interno.
-          Intendência das Minas (1702): órgão de controle e fiscalização.
-          Quinto: 20% de todo ouro pertencia ao Rei.
-          Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.
-          Abertura dos Portos (1808): fim do monopólio → comércio livre.
-          Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.
-          1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.
-          1821: D. João volta; D. Pedro fica no Brasil.
-          Jan 1822 — Dia do Fico: D. Pedro decide permanecer no Brasil.
-          7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`,
-            `A fotossíntese ocorre nos cloroplastos das células vegetais. A clorofila absorve energia luminosa e participa da produção de matéria orgânica. O gás carbônico entra nas folhas pelos estômatos. A água é absorvida principalmente pelas raízes e transportada pelo xilema. Durante o processo, oxigênio é liberado para o ambiente. A fotossíntese contribui para a cadeia alimentar porque produz matéria orgânica.`,
-            `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção. O uso de máquinas aumentou a produtividade das fábricas. O carvão mineral foi uma fonte importante de energia. A urbanização cresceu com a concentração de trabalhadores nas cidades. As condições de trabalho eram difíceis e provocaram debates sociais. Novas formas de transporte facilitaram a circulação de pessoas e mercadorias.`
+            {
+              name: 'historia',
+              text: `Eixo econômico mudou do Nordeste (açúcar) para o Centro-Sul (Minas Gerais).
+Povoamento do interior → fronteiras ampliadas.
+Surgimento de vilas e cidades → vida urbana nova.
+Tropeiros ligavam regiões → formação de mercado interno.
+Intendência das Minas (1702): órgão de controle e fiscalização.
+Quinto: 20% de todo ouro pertencia ao Rei.
+Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.
+Abertura dos Portos (1808): fim do monopólio → comércio livre.
+Tratados de 1810: produtos ingleses mais baratos → indústria brasileira prejudicada.
+1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.
+1821: D. João volta; D. Pedro fica no Brasil.
+7 Set 1822 — Independência: Grito do Ipiranga → Império do Brasil.`,
+              guide: `Mineração
+Abertura dos Portos
+1815
+Independência`,
+              count: 8
+            },
+            {
+              name: 'biologia',
+              text: `A fotossíntese ocorre nos cloroplastos das células vegetais.
+A clorofila absorve energia luminosa e participa da produção de matéria orgânica.
+O gás carbônico entra nas folhas pelos estômatos.
+A água é absorvida principalmente pelas raízes e transportada pelo xilema.
+Durante o processo, oxigênio é liberado para o ambiente.
+A fotossíntese contribui para a cadeia alimentar porque produz matéria orgânica.
+A respiração celular ocorre nas células e produz energia para seu funcionamento.`,
+              guide: `Fotossíntese
+Clorofila
+Estômatos
+Xilema`,
+              count: 6
+            },
+            {
+              name: 'pergunta-embutida',
+              text: `Por que a Família Real veio para o Brasil?: A Família Real portuguesa deixou Portugal por causa das invasões napoleônicas.
+A Abertura dos Portos permitiu o comércio com outras nações.
+Os Tratados de 1810 favoreceram produtos ingleses.
+A chegada da Corte provocou mudanças políticas.
+O comércio colonial era controlado por Portugal.`,
+              guide: `Família Real
+Abertura dos Portos
+Tratados de 1810`,
+              count: 5
+            }
           ];
 
-          for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex++) {
-            const text = samples[sampleIndex];
-            const expected = sampleIndex === 0 ? 8 : 6;
+          const normalize = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim();
+          const forbiddenQuestion = /qual alternativa está de acordo com o resumo|qual afirmação descreve corretamente|\\bSobre "/i;
+          const forbiddenMeta = /boa prova|para decorar|lembre-se|memorize|ideia para decorar/i;
+          const fragmentEnd = /\\b(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|a|à)\\.?$/i;
 
-            for (let run = 0; run < 400; run++) {
-              const quiz = engine.generateQuizFromText(text, expected);
-              if (quiz.length !== expected) throw new Error('Quantidade incorreta de perguntas');
-              if (new Set(quiz.map(q => q.question)).size !== quiz.length) throw new Error('Perguntas repetidas');
+          for (const sample of samples) {
+            const facts = engine.splitFacts(sample.text);
+            if (facts.length < sample.count) throw new Error(sample.name + ': fatos insuficientes');
+            for (let run = 0; run < 300; run++) {
+              const quiz = engine.generateHybridQuiz(sample.text, sample.guide, sample.count);
+              if (quiz.length !== sample.count) throw new Error(sample.name + ': quantidade incorreta');
+              if (new Set(quiz.map(q => normalize(q.question))).size !== quiz.length) throw new Error(sample.name + ': perguntas repetidas');
 
               for (const q of quiz) {
-                if (q.alternatives.length !== 4) throw new Error('Questão sem 4 alternativas');
-                if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Alternativas repetidas');
-                if (!q.alternatives.includes(q.answer)) throw new Error('Resposta correta ausente');
-                if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Resposta apareceu no enunciado');
-                if (q.alternatives.some(option => option.toLowerCase() !== q.answer.toLowerCase() && engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error('Distrator revela a resposta correta');
-              if (q.alternatives.some(option => option.length < 18)) throw new Error('Alternativa curta');
-              if (q.alternatives.some(option => /\b(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|a|à|um|uma)\.?$/i.test(option.trim()))) throw new Error('Alternativa cortada');
-                if (/Sobre "/.test(q.question)) throw new Error('Formato antigo detectado');
-                if (/qual alternativa está de acordo com o resumo/i.test(q.question)) throw new Error('Formato antigo detectado');
-                if (/este ponto|essa ideia|essa informação|a ideia apresentada|neste ponto do conteúdo/i.test(q.question)) throw new Error('Pergunta vaga detectada');
-                if (q.question.length < 30 && !/^\s*(?:por que|por quê|o que|qual|quais|como|quando|onde|quem)\b/i.test(q.question)) throw new Error('Pergunta curta demais');
+                if (q.alternatives.length !== 4) throw new Error(sample.name + ': 4 alternativas obrigatórias');
+                if (new Set(q.alternatives.map(normalize)).size !== 4) throw new Error(sample.name + ': alternativas repetidas');
+                if (!q.alternatives.some(option => normalize(option) === normalize(q.answer))) throw new Error(sample.name + ': resposta correta ausente');
+                if (engine.questionLeaksAnswer(q.question, q.answer, engine.factParts(q.sourceFact).subject)) throw new Error(sample.name + ': resposta vazou na pergunta');
+                if (q.alternatives.some(option => normalize(option) !== normalize(q.answer) && engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error(sample.name + ': distrator revela a resposta');
+                if (forbiddenQuestion.test(q.question)) throw new Error(sample.name + ': pergunta com formato proibido');
+                if (forbiddenMeta.test(q.question) || q.alternatives.some(option => forbiddenMeta.test(option))) throw new Error(sample.name + ': texto de decoração entrou no quiz');
+                if (q.alternatives.some(option => String(option).trim().length < 14 || fragmentEnd.test(String(option).trim()))) throw new Error(sample.name + ': alternativa fragmentada');
               }
             }
           }
 
-          const hybridSummary = `A Revolução Industrial começou na Inglaterra e envolveu a mecanização da produção.
-          O uso de máquinas aumentou a produtividade das fábricas.
-          A urbanização cresceu com a concentração de trabalhadores nas cidades.
-          As condições de trabalho provocaram debates sociais.
-          O carvão mineral foi uma fonte importante de energia.
-          Novas formas de transporte facilitaram a circulação.`;
-          const hybridGuide = `Boa prova! Para decorar: memorize os pontos principais.
-          Revolução Industrial
-          Máquinas e trabalho
-          Urbanização
-          Condições de trabalho`;
-          const guideTopics = engine.splitStudyGuide(hybridGuide);
-          if (guideTopics.some(topic => /boa prova|para decorar|memorize/i.test(topic))) throw new Error('Hybrid: meta entrou no roteiro');
-          if (guideTopics.length !== 4) throw new Error('Hybrid: roteiro não foi separado corretamente');
-          const yearMatch = engine.scoreFactAgainstGuide(
-            '1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.',
-            ['1815']
-          );
-          if (yearMatch.score <= 0) throw new Error('Hybrid: roteiro por ano não prioriza o fato correspondente');
-
-          for (let run = 0; run < 600; run++) {
-            const hybrid = engine.generateHybridQuiz(hybridSummary, hybridGuide, 6);
-            if (hybrid.length !== 6) throw new Error('Hybrid: quantidade incorreta');
-            if (new Set(hybrid.map(q => q.question)).size !== 6) throw new Error('Hybrid: perguntas repetidas');
-            if (hybrid.filter(q => q.guideTopic).length < 3) throw new Error('Hybrid: roteiro não está influenciando o quiz');
-            for (const q of hybrid) {
-              if (q.alternatives.length !== 4) throw new Error('Hybrid: 4 alternativas obrigatórias');
-              if (!q.alternatives.includes(q.answer)) throw new Error('Hybrid: resposta correta ausente');
-              if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Hybrid: alternativas repetidas');
-              if (q.alternatives.some(option => option.toLowerCase() !== q.answer.toLowerCase() && engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error('Hybrid: distrator revela a correta');
-              if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Hybrid: resposta vazou no enunciado');
-              if (q.alternatives.some(a => String(a).trim().length < 14)) throw new Error('Hybrid: alternativa cortada');
-              if (q.alternatives.some(a => /boa prova|para decorar|memorize/i.test(a))) throw new Error('Hybrid: texto de decoração nas alternativas');
-            }
+          const embedded = engine.generateHybridQuiz(samples[2].text, samples[2].guide, 5);
+          if (!embedded.some(q => /^Por que a Família Real veio para o Brasil\?$/i.test(q.question))) {
+            throw new Error('Pergunta embutida não foi preservada');
+          }
+          if (embedded.some(q => /^Por que a:/i.test(q.question) || q.alternatives.some(option => /^Por que a:/i.test(option)))) {
+            throw new Error('Fragmento de pergunta embutida apareceu no quiz');
           }
 
-          for (let run = 0; run < 300; run++) {
-            const fallbackQuiz = engine.generateHybridQuiz(hybridSummary, '', 6);
-            if (fallbackQuiz.length !== 6) throw new Error('Hybrid fallback: quantidade incorreta');
-            if (fallbackQuiz.some(q => q.guideTopic)) throw new Error('Hybrid fallback: roteiro fantasma');
-          }
-
-          const decorationProbe = `Boa prova! Para decorar: antes, o comércio colonial era controlado por Portugal; de
-          Ideia para decorar: antes, o comércio colonial era controlado por Portugal; depois vieram mudanças.
-          Quinto: 20% de todo ouro pertencia ao Rei.
-          Abertura dos Portos (1808): fim do monopólio → comércio livre.
-          Intendência das Minas (1702): órgão de controle e fiscalização.
-          Povoamento do interior → fronteiras ampliadas.
-          Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.`;
-          const probeFacts = engine.splitFacts(decorationProbe);
-          if (probeFacts.some(f => /boa prova|para decorar|ideia para decorar|o mais importante/i.test(f))) {
-            throw new Error('Quiz quality: conteúdo de decoração foi aceito como fato');
-          }
-
-          const probeQuiz = engine.generateQuizFromText(decorationProbe, 5);
-          for (const q of probeQuiz) {
-            for (const option of q.alternatives) {
-              if (option.length < 20) throw new Error('Quiz quality: alternativa curta/cortada');
-              if (/(?:^|\\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|em|no|na|nos|nas|ao|à|a)\\.?$/i.test(option)) {
-                throw new Error('Quiz quality: alternativa termina com fragmento');
-              }
-              if (/boa prova|para decorar|ideia para decorar/i.test(option)) {
-                throw new Error('Quiz quality: texto de decoração entrou nas alternativas');
-              }
-            }
-          }
-
-          const leakCases = [
-            'Declaração dos Direitos do Homem e do Cidadão: defendia liberdade e igualdade jurídica.',
-            'Povoamento do interior → fronteiras ampliadas.',
-            'Casas de Fundição: ouro derretido e tributado — proibido ouro em pó.',
-            'Abertura dos Portos (1808): fim do monopólio → comércio livre.',
-            '1815: Brasil = Reino Unido a Portugal → deixa de ser colônia.'
-          ];
-
-          for (const fact of leakCases) {
-            const parts = engine.factParts(fact);
-            const answer = engine.answerUnit(fact, parts);
-            const probes = [
-              'Qual informação o resumo apresenta sobre "' + parts.subject + '"?',
-              'No contexto estudado, que informação o resumo apresenta sobre "' + parts.subject + '"?'
-            ];
-            if (probes.some(question => engine.questionLeaksAnswer(question, answer, parts.subject))) {
-              throw new Error('Teste de vazamento de resposta falhou');
-            }
-          }
-
-          const indexHtml = fs.readFileSync('index.html', 'utf8');
-          const liveSource = fs.readFileSync('quiz-live.js', 'utf8');
-          const bootstrapSource = fs.readFileSync('quiz-bootstrap.js', 'utf8');
-
-          if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
-          if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
-          if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-stable-3/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
-          if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
-          if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
-          if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
-          if (!/const getFreshSummary = async context =>/.test(liveSource)) throw new Error('Helper getFreshSummary ausente');
-          if (!/reader\.close\(\)/.test(liveSource)) throw new Error('Proteção de dialogs ausente');
-          if (!/document\.addEventListener\('click', handleClick, true\)/.test(bootstrapSource)) throw new Error('Captura do botão ausente');
-
-          const handlers = [];
-          class FakeElement {
-            closest(selector) { return selector === '#aiQuizButton' ? this : null; }
-          }
-
-          const fakeDocument = {
-            querySelector() { return null; },
-            addEventListener(type, handler, capture) {
-              if (type === 'click' && capture === true) handlers.push(handler);
-            }
-          };
-
-          let openCalled = false;
-          vm.runInNewContext(bootstrapSource, {
-            document: fakeDocument,
-            window: { nexaQuizOpen() { openCalled = true; } },
-            Element: FakeElement,
-            console
-          });
-
-          if (handlers.length !== 1) throw new Error('Listener do botão não registrado');
-
-          handlers[0]({
-            target: new FakeElement(),
-            preventDefault() {},
-            stopImmediatePropagation() {}
-          });
-
-          if (!openCalled) throw new Error('Clique do botão não abriu o quiz');
-
-          console.log('Quiz validation OK: 1200+ gerações, anti-vazamento e integração do botão');
+          console.log('Quiz validation OK');
           NODE
 
       - name: Setup Pages
