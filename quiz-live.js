@@ -459,22 +459,7 @@
     }
   };
 
-  const bindQuizButton = () => {
-    const button = $('#aiQuizButton');
-    if (!button || button.dataset.quizBound === '1') return;
-    button.dataset.quizBound = '1';
-    button.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      openQuiz();
-    });
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindQuizButton, { once: true });
-  } else {
-    bindQuizButton();
-  }
+  window.nexaQuizOpen = openQuiz;
 
   document.addEventListener('click', event => {
     const target = event.target;
