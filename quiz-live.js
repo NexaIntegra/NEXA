@@ -394,30 +394,67 @@
       return ensureSentence('A sequência apresentada foi: ' + parts.sequence.join(' → '));
     }
 
-    if (parts.relation === 'relation') {
-      const bits = String(parts.detail || '').split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-      if (bits.length >= 2) {
-        return ensureSentence(bits[0].replace(/[.]$/, '') + ' levou a ' + bits.slice(1).join(' e '));
+    const arrowBits = String(parts.detail || '')
+      .split(/\s+[→⇒]\s+/)
+      .map(x => x.replace(/[.]$/, '').trim())
+      .filter(Boolean);
+
+    if (parts.relation === 'relation' && arrowBits.length >= 2) {
+      const left = arrowBits[0];
+      const right = arrowBits.slice(1).join(' e ');
+      const leftNorm = normalize(left);
+
+      if (/fim do monopolio/i.test(leftNorm) && /comercio livre/i.test(normalize(right))) {
+        return 'O fim do monopólio abriu espaço para o comércio livre.';
       }
+      if (/povoamento do interior/i.test(leftNorm) && /fronteiras ampliadas/i.test(normalize(right))) {
+        return 'O povoamento do interior levou à ampliação das fronteiras.';
+      }
+      if (/surgimento de vilas e cidades/i.test(leftNorm) && /vida urbana nova/i.test(normalize(right))) {
+        return 'O surgimento de vilas e cidades deu origem a uma nova vida urbana.';
+      }
+      if (/tropeiros ligavam regioes/i.test(leftNorm) && /formacao de mercado interno/i.test(normalize(right))) {
+        return 'A atuação dos tropeiros contribuiu para a formação de um mercado interno.';
+      }
+      if (/produtos ingleses mais baratos/i.test(leftNorm) && /industria brasileira prejudicada/i.test(normalize(right))) {
+        return 'Produtos ingleses mais baratos prejudicaram a indústria brasileira.';
+      }
+
+      return cleanAnswer(left + ' → ' + right);
     }
 
     if (parts.relation === 'explanation') {
-      const bits = String(parts.detail || '').split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+      const bits = String(parts.detail || '')
+        .split(/\s+[—–-]\s+/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+      if (bits.length >= 2 && /proibido|proibia/i.test(bits[1])) {
+        return 'O ' + bits[0].replace(/^o\s+/i,'') + ', e ' + bits[1].replace(/^proibido\s+/i, 'o ') + '.';
+      }
       if (bits.length >= 2) {
-        return ensureSentence(bits[0].replace(/[.]$/, '') + ', e ' + bits.slice(1).join(', e '));
+        return ensureSentence(bits[0] + ', e ' + bits.slice(1).join(', e '));
       }
     }
 
     if (parts.relation === 'date') {
       let body = String(parts.detail || fact || '').trim();
-      body = body.replace(/^\s*[^:]+:\s*/, '');
+      body = body.replace(/^\s*[^:]+:\s*/, '').replace(/^\s*[-—:]+\s*/, '').trim();
       const arrow = body.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+
+      if (/^Brasil\s*=\s*Reino Unido a Portugal/i.test(body)) {
+        return 'Em ' + parts.year + ', o Brasil tornou-se Reino Unido a Portugal e deixou de ser colônia.';
+      }
+      if (/^Independência\s*:/i.test(body)) {
+        return 'Em ' + parts.year + ', a Independência foi marcada pelo Grito do Ipiranga e deu origem ao Império do Brasil.';
+      }
+      if (/^D\.\s*João volta/i.test(body) || /^D\.\s*João voltou/i.test(body)) {
+        return 'Em ' + parts.year + ', D. João voltou e D. Pedro permaneceu no Brasil.';
+      }
       if (arrow.length >= 2) {
         body = arrow[0].replace(/[.]$/, '') + ' e ' + arrow.slice(1).join(' e ');
-      } else {
-        body = body.replace(/\s*=\s*/g, ' passou a ser ');
       }
-      body = body.replace(/^Independência\s*:\s*/i, 'a Independência ocorreu com ');
+      body = body.replace(/\s*=\s*/g, ' passou a ser ');
       return ensureSentence(body);
     }
 
@@ -427,8 +464,6 @@
 
     return original;
   };
-
-  const answerUnit = naturalizeAnswer;
 
   const cleanAnswer = value => {
     let clean = String(value || '')
