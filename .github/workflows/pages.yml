@@ -41,6 +41,7 @@ jobs:
           const engine = window.nexaQuizEngine;
           if (!engine || typeof engine.generateQuizFromText !== 'function') throw new Error('Quiz engine não carregou');
           if (typeof engine.generateHybridQuiz !== 'function') throw new Error('Quiz híbrido não carregou');
+          if (typeof engine.candidateLeaksCorrectAnswer !== 'function') throw new Error('Validador de distratores não carregou');
           if (typeof engine.splitStudyGuide !== 'function') throw new Error('Leitor do roteiro não carregou');
           if (typeof engine.scoreFactAgainstGuide !== 'function') throw new Error('Pontuação do roteiro não carregou');
 
@@ -186,7 +187,7 @@ Abertura dos Portos (1808): fim do monopólio → comércio livre.`;
           if (!/type="button" id="aiQuizButton"/.test(indexHtml)) throw new Error('Botão do quiz inválido');
           if ((indexHtml.match(/id="aiQuizButton"/g) || []).length !== 1) throw new Error('Botão do quiz duplicado');
           if ((indexHtml.match(/id="quizDialog"/g) || []).length !== 1) throw new Error('Dialog do quiz duplicado');
-          if (!/quiz-live\.js\?v=20260924-hybrid-6/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
+          if (!/quiz-live\.js\?v=20260924-hybrid-7/.test(indexHtml)) throw new Error('Cache do quiz desatualizado');
           if (!/window\.nexaQuizOpen = openQuiz;/.test(liveSource)) throw new Error('Função pública do quiz ausente');
           if (!/const \$ = selector => document\.querySelector\(selector\);/.test(liveSource)) throw new Error('Helper $ ausente');
           if (!/const esc = value =>/.test(liveSource)) throw new Error('Helper esc ausente');
