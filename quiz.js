@@ -226,7 +226,8 @@
     for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
       const data = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
-      parts.push(assemblePdfText(data.items));
+      const pageText = assemblePdfText(data.items);
+      parts.push(pageText);
       total += pageText.length;
       if (total >= 100000) break;
     }
