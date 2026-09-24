@@ -125,7 +125,7 @@ Condições de trabalho`;
               if (q.alternatives.length !== 4) throw new Error('Hybrid: 4 alternativas obrigatórias');
               if (!q.alternatives.includes(q.answer)) throw new Error('Hybrid: resposta correta ausente');
               if (new Set(q.alternatives.map(a => a.toLowerCase())).size !== 4) throw new Error('Hybrid: alternativas repetidas');
-              if (q.alternatives.some(option => engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error('Hybrid: distrator revela a correta');
+              if (q.alternatives.some(option => option.toLowerCase() !== q.answer.toLowerCase() && engine.candidateLeaksCorrectAnswer(option, q.answer))) throw new Error('Hybrid: distrator revela a correta');
               if (engine.questionLeaksAnswer(q.question, q.answer)) throw new Error('Hybrid: resposta vazou no enunciado');
               if (q.alternatives.some(a => String(a).trim().length < 14)) throw new Error('Hybrid: alternativa cortada');
               if (q.alternatives.some(a => /boa prova|para decorar|memorize/i.test(a))) throw new Error('Hybrid: texto de decoração nas alternativas');
