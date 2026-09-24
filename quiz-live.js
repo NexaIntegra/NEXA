@@ -183,6 +183,7 @@
 
     const yearAtStart = clean.match(/^\s*(1[5-9]\d{2}|20\d{2})\b/);
     const dateAtStart = clean.match(/^\s*(?:(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+)?\d{1,2}\s+(?:de\s+)?[A-Za-zÀ-ÿ]+\s+(?:de\s+)?(1[5-9]\d{2}|20\d{2})\b/i);
+    const dayMonthYearAtStart = clean.match(/^\s*(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
     const monthYearAtStart = clean.match(/^\s*(?:Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[a-z]*\s+(1[5-9]\d{2}|20\d{2})\b/i);
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
@@ -193,8 +194,8 @@
     const markerList = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido'];
     const marker = markerList.find(item => normalize(clean).includes(normalize(item)));
 
-    if (dateAtStart || monthYearAtStart) {
-      const dateMatch = dateAtStart || monthYearAtStart;
+    if (dayMonthYearAtStart || dateAtStart || monthYearAtStart) {
+      const dateMatch = dayMonthYearAtStart || dateAtStart || monthYearAtStart;
       const detail = clean.replace(dateMatch[0], '').replace(/^\s*[-—:]+\s*/, '').trim();
       const subject = detail.split(/\s*:\s*|\s+[→⇒]\s+/)[0].trim() || detail;
       return { subject, detail: detail || clean, relation: 'date', year: dateMatch[1] };
@@ -331,10 +332,6 @@
       return ensureSentence('A sequência apresentada no resumo é: ' + parts.sequence.join(' → '));
     }
 
-    if (parts.relation === 'relation' && parts.subject && parts.detail) {
-      return ensureSentence('O resumo apresenta a relação entre "' + parts.subject + '" e "' + parts.detail + '"');
-    }
-
     return original;
   };
 
@@ -443,7 +440,7 @@
       .filter(item => item.answer && normalize(item.answer) !== normalize(answer))
       .filter(item => !isStudyMeta(item.answer))
       .filter(item => !isFragment(item.answer))
-      .filter(item => answerSimilarity(answer, item.answer) < 0.82);
+      .filter(item => answerSimilarity(answer, item.answer) < 0.96);
 
     const distinct = [];
     for (const item of candidates) {
@@ -529,7 +526,8 @@
     assemblePdfText,
     generateQuizFromText,
     isStudyMeta,
-    isFragment
+    isFragment,
+    answerSimilarity
   };
 
   if (typeof document === 'undefined') return;
