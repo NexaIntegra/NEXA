@@ -21,6 +21,7 @@
 
   const studyMetaPatterns = [
     /\bboa prova\b/i,
+    /\b(?:ideia|ideia central)\s+para\s+decorar\b/i,
     /\bpara decorar\b/i,
     /\bo mais importante (?:é|e) entender\b/i,
     /\blembre-se\b/i,
@@ -37,10 +38,21 @@
     /\bresumindo\b/i,
     /\bem resumo\b/i,
     /\bcai\s+na\s+prova\b/i,
-    /\bo que cai\s+na\s+prova\b/i
+    /\bo que cai\s+na\s+prova\b/i,
+    /\bguarde\s+isso\b/i,
+    /\bna\s+hora\s+da\s+prova\b/i
   ];
 
   const isStudyMeta = text => studyMetaPatterns.some(pattern => pattern.test(String(text || '')));
+
+  const isFragment = text => {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return true;
+    if (/[→⇒—–:-]\s*$/.test(clean)) return true;
+    if (/(?:^|\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|à|aos|às|um|uma|o|a)$/i.test(clean)) return true;
+    if (/^[a-zà-ÿ]/.test(clean)) return true;
+    return false;
+  };
 
   const ensureSentence = text => {
     const clean = String(text || '').replace(/\s+/g, ' ').trim();
@@ -71,22 +83,33 @@
   const splitFacts = text => {
     const raw = htmlToText(text);
     const pieces = [];
+
     raw.split(/\n+/).forEach(line => {
       const cleanLine = line
         .replace(/^[\s•▪●◦\-–—]+/, '')
         .replace(/^\d+[.)]\s*/, '')
         .replace(/\bD\.\s+/g, 'D§ ')
         .trim();
-      if (!cleanLine) return;
+
+      if (!cleanLine || isStudyMeta(cleanLine)) return;
 
       cleanLine.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/).forEach(part => {
         const fact = part
           .replace(/D§\s+/g, 'D. ')
           .replace(/\s{2,}/g, ' ')
           .trim();
-        if (fact.length >= 24 && fact.length <= 500 && !isStudyMeta(fact)) pieces.push(fact);
+
+        if (
+          fact.length >= 24 &&
+          fact.length <= 500 &&
+          !isStudyMeta(fact) &&
+          !isFragment(fact)
+        ) {
+          pieces.push(fact);
+        }
       });
     });
+
     return [...new Map(pieces.map(item => [normalize(item), item])).values()];
   };
 
@@ -302,73 +325,67 @@
   };
 
   const answerUnit = (fact, parts) => {
-    switch (parts.relation) {
-      case 'sequence':
-        return ensureSentence('A sequência apresentada no resumo é: ' + parts.sequence.join(' → '));
-      case 'relation':
-        return ensureSentence(parts.subject + ' está relacionado a ' + parts.detail);
-      case 'detail':
-        return ensureSentence(parts.subject + ': ' + parts.detail);
-      case 'change':
-        return ensureSentence(parts.subject + ' ' + parts.verb + ' ' + parts.detail);
-      case 'cause':
-        return ensureSentence(parts.subject + ' ' + parts.connector + ' ' + parts.detail);
-      case 'consequence':
-        return ensureSentence(parts.subject + ' ' + parts.detail);
-      case 'explanation':
-        return ensureSentence(parts.subject + ': ' + parts.detail);
-      case 'date':
-        return ensureSentence('Em ' + parts.year + ', ' + (parts.detail || fact));
-      default:
-        return ensureSentence(fact);
+    const original = ensureSentence(fact);
+
+    if (parts.relation === 'sequence' && Array.isArray(parts.sequence) && parts.sequence.length >= 3) {
+      return ensureSentence('A sequência apresentada no resumo é: ' + parts.sequence.join(' → '));
     }
+
+    if (parts.relation === 'relation' && parts.subject && parts.detail) {
+      return ensureSentence('O resumo apresenta a relação entre "' + parts.subject + '" e "' + parts.detail + '"');
+    }
+
+    return original;
   };
 
   const questionTemplates = {
     sequence: [
       p => 'Qual sequência de acontecimentos é apresentada no resumo a partir de "' + p.subject + '"?',
-      p => 'Ao tratar de "' + p.subject + '", qual sequência é mostrada no conteúdo?',
-      p => 'Qual cadeia de acontecimentos o resumo apresenta começando por "' + p.subject + '"?'
+      p => 'Ao tratar de "' + p.subject + '", qual sequência aparece no conteúdo?',
+      p => 'Que acontecimentos aparecem em sequência depois de "' + p.subject + '"?'
     ],
     relation: [
-      p => 'Qual resultado ou consequência o resumo associa a "' + p.subject + '"?',
-      p => 'O que o conteúdo apresenta como desdobramento de "' + p.subject + '"?',
-      p => 'Que mudança ou resultado aparece relacionado a "' + p.subject + '" no resumo?'
+      p => 'Que consequência o resumo apresenta para "' + p.subject + '"?',
+      p => 'O que aconteceu a partir de "' + p.subject + '" segundo o conteúdo?',
+      p => 'Que resultado aparece depois de "' + p.subject + '" no resumo?'
     ],
     detail: [
-      p => p.detail && /%/.test(p.detail) ? 'Qual porcentagem ou valor numérico o resumo associa a "' + p.subject + '"?' : 'No tema estudado, qual função ou característica é atribuída a "' + p.subject + '"?',
-      p => p.detail && /órgão|controle|função|fiscalização/i.test(p.detail) ? 'Qual era a função de "' + p.subject + '" segundo o resumo?' : 'O que o resumo destaca sobre "' + p.subject + '"?',
-      p => p.detail && /proibido|proibia/i.test(p.detail) ? 'O que era proibido em relação a "' + p.subject + '"?' : 'Qual descrição explica corretamente "' + p.subject + '" no contexto estudado?'
+      p => p.detail && /%/.test(p.detail) ? 'Qual porcentagem ou valor o resumo associa a "' + p.subject + '"?' :
+        p.detail && /órgão|controle|função|fiscalização/i.test(p.detail) ? 'Qual era a função de "' + p.subject + '" segundo o resumo?' :
+        p.detail && /proibido|proibia/i.test(p.detail) ? 'O que era proibido em relação a "' + p.subject + '"?' :
+        'Que informação específica o resumo apresenta sobre "' + p.subject + '"?',
+      p => 'Como "' + p.subject + '" é descrito no conteúdo estudado?',
+      p => 'Qual característica de "' + p.subject + '" aparece no resumo?'
     ],
     change: [
-      p => 'Que mudança o resumo apresenta em "' + p.subject + '"?',
-      p => 'Como o conteúdo descreve a transformação ocorrida em "' + p.subject + '"?',
-      p => 'O que mudou em "' + p.subject + '" segundo o resumo?'
+      p => 'Que mudança ocorreu em "' + p.subject + '" segundo o resumo?',
+      p => 'Como o conteúdo descreve a transformação de "' + p.subject + '"?',
+      p => 'O que mudou em "' + p.subject + '" de acordo com o resumo?'
     ],
     cause: [
-      p => 'Qual explicação o resumo apresenta para "' + p.subject + '"?',
-      p => 'Segundo o conteúdo, o que explica o que ocorreu com "' + p.subject + '"?',
-      p => 'Que motivo é apresentado no resumo para o que aconteceu com "' + p.subject + '"?'
+      p => 'Que explicação o resumo apresenta para o que ocorreu com "' + p.subject + '"?',
+      p => 'Segundo o conteúdo, o que explica "' + p.subject + '"?',
+      p => 'Qual motivo é apresentado no resumo para "' + p.subject + '"?'
     ],
     consequence: [
       p => 'Qual consequência o resumo atribui a "' + p.subject + '"?',
-      p => 'Que resultado é associado a "' + p.subject + '" no conteúdo?',
-      p => 'O que ocorreu como consequência de "' + p.subject + '" segundo o resumo?'
+      p => 'Que resultado aparece como consequência de "' + p.subject + '"?',
+      p => 'O que ocorreu como consequência de "' + p.subject + '" segundo o conteúdo?'
     ],
     explanation: [
       p => 'Como o resumo caracteriza "' + p.subject + '"?',
-      p => 'Que informação explica corretamente "' + p.subject + '" no conteúdo estudado?',
-      p => 'Qual característica ou explicação é apresentada para "' + p.subject + '"?'
+      p => 'Que explicação o conteúdo apresenta para "' + p.subject + '"?',
+      p => 'Qual característica ou explicação é dada para "' + p.subject + '" no resumo?'
     ],
     date: [
-      p => 'Em que ano aconteceu o fato descrito no resumo como "' + p.subject + '"?',
-      p => 'Qual é a data associada ao acontecimento apresentado como "' + p.subject + '"?',
-      p => 'Em que ano o resumo situa "' + p.subject + '"?'
+      p => 'O que aconteceu em ' + p.year + ' segundo o resumo?',
+      p => 'Qual acontecimento o conteúdo situa em ' + p.year + '?',
+      p => 'Que fato do tema estudado está associado a ' + p.year + '?'
     ],
     general: [
-      p => 'Como o resumo descreve "' + p.subject + '" dentro do tema estudado?',
-      p => 'Que informação específica o conteúdo apresenta sobre "' + p.subject + '"?',
-      p => 'No contexto estudado, o que o resumo afirma sobre "' + p.subject + '"?'
+      p => 'O que o resumo afirma sobre "' + p.subject + '"?',
+      p => 'Como "' + p.subject + '" é explicado no resumo?',
+      p => 'Que informação importante o conteúdo apresenta sobre "' + p.subject + '"?'
     ]
   };
 
@@ -408,7 +425,11 @@
     for (let attempt = 0; attempt < templates.length; attempt++) {
       const templateIndex = (Math.abs(Number(seed) || 0) + attempt) % templates.length;
       const candidate = templates[templateIndex](parts);
-      if (candidate.length >= 55 && !questionLeaksAnswer(candidate, answer)) {
+      if (
+        candidate.length >= 55 &&
+        !isStudyMeta(candidate) &&
+        !questionLeaksAnswer(candidate, answer)
+      ) {
         question = candidate;
         break;
       }
@@ -416,17 +437,16 @@
 
     if (!question) return null;
 
-    const related = relatedFacts(fact, facts);
     const fallback = facts.filter(other => normalize(other) !== normalize(fact));
-    const candidates = unique([...related, ...fallback])
-      .map(other => ({ fact: other, parts: factParts(other) }))
-      .map(item => ({ ...item, answer: answerUnit(item.fact, item.parts) }))
+    const candidates = shuffle(fallback)
+      .map(other => ({ fact: other, answer: answerUnit(other, factParts(other)) }))
       .filter(item => item.answer && normalize(item.answer) !== normalize(answer))
-      .filter(item => !questionLeaksAnswer(question, item.answer))
+      .filter(item => !isStudyMeta(item.answer))
+      .filter(item => !isFragment(item.answer))
       .filter(item => answerSimilarity(answer, item.answer) < 0.82);
 
     const distinct = [];
-    for (const item of shuffle(candidates)) {
+    for (const item of candidates) {
       if (distinct.some(existing => normalize(existing.answer) === normalize(item.answer))) continue;
       distinct.push(item);
       if (distinct.length === 3) break;
@@ -507,7 +527,9 @@
     answerUnit,
     questionLeaksAnswer,
     assemblePdfText,
-    generateQuizFromText
+    generateQuizFromText,
+    isStudyMeta,
+    isFragment
   };
 
   if (typeof document === 'undefined') return;
