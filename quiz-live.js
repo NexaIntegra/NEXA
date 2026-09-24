@@ -431,13 +431,28 @@
   const answerUnit = naturalizeAnswer;
 
   const cleanAnswer = value => {
-    let clean = ensureSentence(value)
+    let clean = String(value || '')
       .replace(/^\s*[•▪●◦\-–—]+/, '')
       .replace(/\s{2,}/g, ' ')
+      .replace(/\.{2,}/g, '.')
+      .replace(/\s+([,.;:!?])/g, '$1')
       .trim();
+
     if (!clean) return '';
     clean = clean.charAt(0).toUpperCase() + clean.slice(1);
     return clean;
+  };
+
+  const cleanLabel = value => cleanAnswer(value)
+    .replace(/[.:;]+$/, '')
+    .trim();
+
+  const combineLabelAndDetail = (label, detail) => {
+    const left = cleanLabel(label);
+    const right = cleanAnswer(detail).replace(/[.]$/, '');
+    if (!left) return cleanAnswer(right);
+    if (!right) return cleanAnswer(left);
+    return cleanAnswer(left + ': ' + right);
   };
 
   const questionTemplates = {
@@ -525,7 +540,7 @@
     const otherParts = factParts(otherFact);
     if (normalize(otherFact) === normalize(fact)) return '';
 
-    const targetSubject = cleanAnswer(parts.subject || '');
+    const targetSubject = cleanLabel(parts.subject || '');
     const otherDetail = cleanAnswer(otherParts.detail || naturalizeAnswer(otherFact, otherParts));
 
     if (!targetSubject || !otherDetail) return '';
@@ -534,9 +549,12 @@
       return cleanAnswer('A sequência apresentada foi: ' + [parts.sequence[0], ...otherParts.sequence.slice(1)].join(' → '));
     }
 
-    if (parts.relation === 'relation' && otherParts.detail) {
-      const bits = otherParts.detail.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
-      if (bits.length >= 2) return cleanAnswer(bits[0] + ' levou a ' + bits.slice(1).join(' e '));
+    if (parts.relation === 'relation' && otherParts.relation === 'relation') {
+      const targetBits = String(parts.detail || '').split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      const otherBits = String(otherParts.detail || '').split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
+      if (targetBits.length >= 2 && otherBits.length >= 2) {
+        return cleanAnswer(otherBits[0] + ' levou a ' + otherBits.slice(1).join(' e '));
+      }
     }
 
     if (parts.relation === 'date' && otherParts.relation === 'date') {
@@ -546,16 +564,18 @@
 
     if (parts.relation === 'consequence' && otherParts.relation === 'consequence') {
       const otherSentence = cleanAnswer(naturalizeAnswer(otherFact, otherParts));
-      const verbPhrase = otherSentence.replace(/^[^.!?]+?\s+(?:e\s+)?/i, '').trim();
-      if (verbPhrase) return cleanAnswer(targetSubject + ' ' + verbPhrase);
+      const otherDetailPart = otherSentence.split(/\s+provoc(?:ou|aram|am|a)|\s+caus(?:ou|aram|am|a)|\s+lev(?:ou|aram|a)|\s+result(?:ou|aram|a)|\s+permit(?:iu|iram|e)/i).pop().trim();
+      if (otherDetailPart && otherDetailPart !== otherSentence) {
+        return cleanAnswer(targetSubject + ' ' + otherDetailPart);
+      }
     }
 
     if (parts.relation === 'change' && otherParts.relation === 'change') {
-      return cleanAnswer(targetSubject + ' ' + String(otherParts.detail || '').trim());
+      return combineLabelAndDetail(targetSubject, otherParts.detail || '');
     }
 
-    if (parts.relation === 'detail' || parts.relation === 'explanation' || parts.relation === 'general') {
-      return cleanAnswer(targetSubject + ': ' + otherDetail);
+    if (['detail','explanation','general'].includes(parts.relation)) {
+      return combineLabelAndDetail(targetSubject, otherDetail);
     }
 
     return cleanAnswer(naturalizeAnswer(otherFact, otherParts));
