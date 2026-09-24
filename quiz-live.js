@@ -330,12 +330,10 @@
         return cleanAnswer((p.verb ? p.verb + ' ' : '') + (p.detail || p.answer || ''));
 
       case 'detail': {
-        const subject = cleanLabel(p.subject || '');
         const value = cleanAnswer(p.detail || p.answer || '');
         if (!value) return '';
         if (/^órgão\b/i.test(value)) return 'Era um ' + value.toLowerCase();
         if (/^20%\b/i.test(value)) return value + ' era destinado à Coroa.';
-        if (/proibido/i.test(value) && subject) return value;
         return value;
       }
 
