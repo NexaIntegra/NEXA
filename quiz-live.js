@@ -551,9 +551,9 @@
       p => 'Que fato do tema é localizado em ' + p.year + '?'
     ],
     general: [
-      p => 'Qual característica ou função define "' + p.subject + '" no conteúdo?',
+      p => 'Qual afirmação descreve melhor "' + p.subject + '" no contexto estudado?',
       p => 'Que informação específica ajuda a compreender "' + p.subject + '"?',
-      p => 'Qual aspecto de "' + p.subject + '" é destacado no conteúdo?'
+      p => 'Qual característica de "' + p.subject + '" é destacada no conteúdo?'
     ]
   };
 
