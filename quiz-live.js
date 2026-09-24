@@ -78,44 +78,6 @@
   const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
 
   const factParts = fact => {
-    const clean = cleanQuestionText(fact);
-    const colon = clean.indexOf(':');
-    const arrowParts = clean.split(/\s+[→⇒]\s+/).map(part => part.trim()).filter(Boolean);
-    const dash = clean.split(/\s+[—–-]\s+/).map(part => part.trim()).filter(Boolean);
-
-    if (arrowParts.length >= 2) {
-      return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relação' };
-    }
-    if (colon > 4 && colon < 120) {
-      return { subject: clean.slice(0, colon).trim(), detail: clean.slice(colon + 1).trim(), relation: 'detalhamento' };
-    }
-    if (dash.length >= 2) {
-      return { subject: dash[0], detail: dash.slice(1).join(' — '), relation: 'explicação' };
-    }
-
-    const markers = [
-      'provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram',
-      'prejudicou','prejudicaram','defendia','defendiam','proibia','proibido','marcou','marcou o início',
-      'ocorreu em','aconteceu em','passou de','mudou de'
-    ];
-    const marker = markers.find(item => normalize(clean).includes(normalize(item)));
-    if (marker) {
-      const idx = normalize(clean).indexOf(normalize(marker));
-      return {
-        subject: clean.slice(0, Math.max(0, idx)).trim(),
-        detail: clean.slice(Math.max(0, idx)).trim(),
-        relation: 'consequência'
-      };
-    }
-
-    return {
-      subject: clean.split(/\s+/).slice(0, Math.min(8, clean.split(/\s+/).length)).join(' '),
-      detail: clean,
-      relation: 'característica'
-    };
-  };
-
-  const factParts = fact => {
     const clean = String(fact || '').replace(/^\d+[.)]\s*/, '').replace(/^[•▪●◦\-–—]+\s*/, '').replace(/\s{2,}/g, ' ').trim();
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
