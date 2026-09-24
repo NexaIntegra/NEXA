@@ -50,7 +50,6 @@
     if (!clean) return true;
     if (/[→⇒—–:-]\s*$/.test(clean)) return true;
     if (/(?:^|\s)(?:de|do|da|dos|das|e|ou|para|com|por|que|como|em|no|na|nos|nas|ao|à|aos|às|um|uma|o|a)$/i.test(clean)) return true;
-    if (/^[a-zà-ÿ]/.test(clean)) return true;
     return false;
   };
 
@@ -247,7 +246,7 @@
 
     if (dayMonthYearAtStart || dateAtStart || monthYearAtStart) {
       const dateMatch = dayMonthYearAtStart || dateAtStart || monthYearAtStart;
-      const yearValue = dayMonthYearAtStart ? dayMonthYearAtStart[2] : (dateAtStart ? dateAtStart[1] : monthYearAtStart[1]);
+      const yearValue = dayMonthYearAtStart ? dayMonthYearAtStart[3] : (dateAtStart ? dateAtStart[1] : monthYearAtStart[1]);
       const detail = clean.replace(dateMatch[0], '').replace(/^\s*[-—:]+\s*/, '').trim();
       const subject = detail.split(/\s*:\s*|\s+[→⇒]\s+/)[0].trim() || detail;
       return { subject, detail: detail || clean, relation: 'date', year: yearValue };
