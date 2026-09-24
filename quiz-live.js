@@ -78,10 +78,16 @@
   const unique = list => [...new Map(list.filter(Boolean).map(x => [normalize(x), x])).values()];
 
   const factParts = fact => {
-    const clean = String(fact || '').replace(/^\d+[.)]\s*/, '').replace(/^[•▪●◦\-–—]+\s*/, '').replace(/\s{2,}/g, ' ').trim();
+    const clean = String(fact || '')
+      .replace(/^\d+[.)]\s*/, '')
+      .replace(/^[•▪●◦\-–—]+\s*/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
     const colon = clean.indexOf(':');
     const arrowParts = clean.split(/\s+[→⇒]\s+/).map(x => x.trim()).filter(Boolean);
     const dashParts = clean.split(/\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+    const year = clean.match(/\b(?:1[5-9]\d{2}|20\d{2})\b/);
 
     if (arrowParts.length >= 2) {
       return { subject: arrowParts[0], detail: arrowParts.slice(1).join(' → '), relation: 'relation' };
@@ -92,9 +98,9 @@
     if (dashParts.length >= 2) {
       return { subject: dashParts[0], detail: dashParts.slice(1).join(' — '), relation: 'explanation' };
     }
-    const changeMatch = clean.match(/^(.+?)\s+(mudou|passou de)\s+(.+)$/i);
-    if (changeMatch) {
-      return { subject: changeMatch[1].trim(), detail: changeMatch[2] + ' ' + changeMatch[3].trim(), relation: 'change' };
+    const change = clean.match(/^(.+?)\s+(mudou|passou de)\s+(.+)$/i);
+    if (change) {
+      return { subject: change[1].trim(), detail: change[2] + ' ' + change[3].trim(), relation: 'change' };
     }
     const markers = ['provocou','provocaram','causou','causaram','levou a','levou à','resultou em','permitiu','permitiram','prejudicou','prejudicaram','defendia','defendiam','proibia','proibido','ocorreu em','aconteceu em'];
     const marker = markers.find(item => normalize(clean).includes(normalize(item)));
@@ -102,8 +108,12 @@
       const idx = normalize(clean).indexOf(normalize(marker));
       return { subject: clean.slice(0, idx).trim(), detail: clean.slice(idx).trim(), relation: 'consequence' };
     }
+    if (year) {
+      return { subject: 'o acontecimento de ' + year[0], detail: clean, relation: 'date' };
+    }
+    const words = clean.split(/\s+/);
     return {
-      subject: clean.split(/\s+/).slice(0, Math.min(8, clean.split(/\s+/).length)).join(' '),
+      subject: words.slice(0, Math.min(9, words.length)).join(' '),
       detail: clean,
       relation: 'general'
     };
@@ -111,21 +121,32 @@
 
   const makeDetailedQuestion = (fact, facts, keyList) => {
     const parts = factParts(fact);
-    const topic = keyList.find(key => normalize(fact).includes(normalize(key))) || parts.subject;
+    const topic = parts.relation === 'general'
+      ? (keyList.find(key => normalize(fact).includes(normalize(key))) || parts.subject)
+      : parts.subject;
 
     let question = '';
-    if (parts.relation === 'relation') {
-      question = 'O resumo relaciona "' + parts.subject + '" com "' + parts.detail + '". Qual alternativa interpreta corretamente essa relação e o que ela representa dentro do tema estudado?';
-    } else if (parts.relation === 'detail') {
-      question = 'Ao tratar de "' + parts.subject + '", qual informação específica o resumo apresenta e como esse ponto se encaixa no conteúdo estudado?';
-    } else if (parts.relation === 'change') {
-      question = 'Como o resumo descreve a mudança em "' + parts.subject + '" e quais elementos estão envolvidos nessa transformação?';
-    } else if (parts.relation === 'consequence') {
-      question = 'Segundo o resumo, qual é a principal consequência, característica ou resultado associado a "' + (parts.subject || topic) + '"?';
-    } else if (parts.relation === 'explanation') {
-      question = 'Considerando o ponto "' + parts.subject + '", qual explicação ou consequência é apresentada no resumo para esse aspecto?';
-    } else {
-      question = 'Considerando o contexto de "' + topic + '", qual alternativa descreve corretamente a informação apresentada no resumo e sua importância para o tema?';
+    switch (parts.relation) {
+      case 'relation':
+        question = 'Qual alternativa explica corretamente a relação entre "' + parts.subject + '" e "' + parts.detail + '" apresentada no material?';
+        break;
+      case 'detail':
+        question = 'Qual alternativa descreve corretamente "' + parts.subject + '" no contexto estudado, incluindo a função ou característica destacada no resumo?';
+        break;
+      case 'change':
+        question = 'Como ocorreu a mudança em "' + parts.subject + '" e quais elementos ou regiões aparecem relacionados a essa transformação?';
+        break;
+      case 'consequence':
+        question = 'Qual foi a consequência, característica ou resultado associado a "' + (parts.subject || topic) + '" de acordo com o conteúdo estudado?';
+        break;
+      case 'explanation':
+        question = 'Considerando "' + parts.subject + '", qual explicação apresentada no resumo completa corretamente esse ponto do conteúdo?';
+        break;
+      case 'date':
+        question = 'O que aconteceu em ' + parts.subject.replace('o acontecimento de ', '') + ' e qual informação do contexto estudado está associada a essa data?';
+        break;
+      default:
+        question = 'Considerando "' + topic + '" e o contexto apresentado no material, qual afirmação está correta e explica esse ponto do conteúdo?';
     }
 
     const related = facts.filter(other => {
@@ -133,7 +154,8 @@
       const words = topic.split(/\s+/).filter(word => word.length >= 5).slice(0, 3);
       return words.length > 0 && words.some(word => normalize(other).includes(normalize(word)));
     });
-    const pool = related.length >= 3 ? related : facts.filter(other => normalize(other) !== normalize(fact));
+    const fallback = facts.filter(other => normalize(other) !== normalize(fact));
+    const pool = related.length >= 3 ? related : fallback;
     const alternatives = shuffle(unique([fact, ...shuffle(pool).slice(0, 3)])).slice(0, 4);
 
     if (alternatives.length !== 4 || !alternatives.some(item => normalize(item) === normalize(fact))) return null;
@@ -142,7 +164,7 @@
       question,
       answer: fact,
       alternatives,
-      explanation: 'A resposta está correta porque o resumo apresenta: "' + fact + '"'
+      explanation: 'A resposta está baseada no trecho do resumo que diz: "' + fact + '"'
     };
   };
 
