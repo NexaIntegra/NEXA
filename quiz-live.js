@@ -328,6 +328,16 @@
 
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
 
+  const getFreshSummary = async context => {
+    if (context && context.summary && context.summary.id && window.nexaApi && typeof window.nexaApi.getSummary === 'function') {
+      try {
+        const fresh = await window.nexaApi.getSummary(context.summary.id);
+        if (fresh) return fresh;
+      } catch {}
+    }
+    return context ? context.summary : null;
+  };
+
   const extractPdfText = async pdfUrl => {
     if (!pdfUrl || !window.pdfjsLib) return '';
     const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
