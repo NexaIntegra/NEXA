@@ -837,9 +837,9 @@
 
   const generateHybridQuiz = (summaryText, guideText, desiredCount) => {
     const facts = splitFacts(summaryText);
-    if (facts.length < 5) throw new Error('Não encontrei informações suficientes neste resumo para criar o quiz.');
+    if (facts.length < 4) throw new Error('Não há informações suficientes para montar um quiz confiável.');
 
-    const count = Math.min(facts.length, 8, Math.max(5, Number(desiredCount) || 6));
+    const count = Math.min(facts.length, 8, Math.max(4, Number(desiredCount) || 6));
     const guideTopics = splitStudyGuide(guideText);
 
     if (!guideTopics.length) {
